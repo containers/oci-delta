@@ -1,4 +1,5 @@
 %global goipath         github.com/containers/oci-delta
+%global gobuildtags     exclude_graphdriver_aufs exclude_graphdriver_btrfs exclude_graphdriver_zfs
 
 Version:        @@VERSION@@
 
@@ -15,6 +16,7 @@ Source0:        https://github.com/containers/oci-delta/releases/download/v%{ver
 
 BuildRequires:  %{?go_compiler:compiler(go-compiler)}%{!?go_compiler:golang}
 BuildRequires:  glib2-devel
+BuildRequires:  ostree-devel
 BuildRequires:  pkgconfig
 %if 0%{?fedora}
 # DO NOT REMOVE the BUNDLE_START and BUNDLE_END markers as they are used by 'tools/rpm_spec_add_provides_bundle.sh' to generate the Provides: bundled list
@@ -54,7 +56,7 @@ export GOFLAGS+=" -mod=vendor"
 %undefine gomodulesmode
 %endif
 
-%gobuild -o _bin/oci-delta %{goipath}/cmd/oci-delta
+%gobuild -o _bin/oci-delta -tags "%{gobuildtags}" %{goipath}/cmd/oci-delta
 
 %install
 install -m 0755 -vd                          %{buildroot}%{_bindir}
@@ -66,7 +68,7 @@ export GOFLAGS="-buildmode=pie"
 export GOFLAGS+=" -mod=vendor"
 export GOPATH=$PWD/_build:%{gopath}
 cd $PWD/_build/src/%{goipath}
-%gotest ./...
+%gotest -tags "%{gobuildtags}" ./...
 %else
 %gocheck
 %endif
