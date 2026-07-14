@@ -1,0 +1,38 @@
+summary: E2E tests for oci-delta with bootc images
+description: |
+    End-to-end testing of oci-delta workflow on real bootc images:
+    - Pull Fedora bootc images (43 and 44)
+    - Create delta package
+    - Apply delta to reconstruct image
+    - Switch bootc deployment
+    - Reboot and verify new deployment
+
+provision:
+    hardware:
+        virtualization:
+            is-supported: true
+
+discover:
+    how: shell
+    tests:
+      - name: e2e-bootc
+        test: make build && make test-e2e
+
+prepare:
+    - name: Install dependencies
+      how: shell
+      script: |
+          dnf install -y golang gcc make podman skopeo jq sshpass qemu-kvm qemu-img libvirt virt-install glib2-devel gpgme-devel btrfs-progs-devel device-mapper-devel ostree-devel
+
+    - name: Start libvirt
+      how: shell
+      script: |
+          systemctl start libvirtd
+          virsh net-start default || true
+
+execute:
+    how: tmt
+
+environment:
+    # Use VM mode (Testing Farm provides nested virt)
+    TEST_MODE: vm

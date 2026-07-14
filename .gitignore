@@ -6,5 +6,9 @@ vendor/
 # Generated man page
 docs/man/oci-delta.1
 
+# E2E test artifacts
+*.qcow2
+/config.toml
+
 *.bz2
 *.gz

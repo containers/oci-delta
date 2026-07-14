@@ -1,4 +1,4 @@
-.PHONY: build clean test test-coverage fmt lint man
+.PHONY: build clean test test-coverage test-e2e fmt lint man
 
 COVERDIR ?= $(CURDIR)/.coverdata
 
@@ -17,6 +17,7 @@ clean:
 	rm -rf $(CURDIR)/rpmbuild
 	rm -f build/package/rpm/*-vendor.tar.bz2
 	rm -f build/package/rpm/oci-delta-*.tar.gz
+	rm -f config.toml
 
 test: build
 	go test ./...
@@ -30,6 +31,10 @@ test-coverage:
 	GOCOVERDIR=$(COVERDIR)/integration python3 tests/test-synthetic.py
 	GOCOVERDIR=$(COVERDIR)/integration tests/integration-test.sh
 	go tool covdata percent -i $(COVERDIR)/unit,$(COVERDIR)/integration
+
+test-e2e: build
+	@echo "Running E2E tests (requires KVM for full coverage, falls back to container mode)"
+	tests/e2e-bootc-test.sh
 
 fmt:
 	go fmt ./...
