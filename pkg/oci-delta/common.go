@@ -14,12 +14,16 @@ import (
 
 type Logger interface {
 	Debug(format string, args ...interface{})
+	Info(msg string)
+	Infof(format string, args ...interface{})
 	Warning(format string, args ...interface{})
 }
 
 type SilentLogger struct{}
 
 func (SilentLogger) Debug(string, ...interface{})   {}
+func (SilentLogger) Info(string)                    {}
+func (SilentLogger) Infof(string, ...interface{})   {}
 func (SilentLogger) Warning(string, ...interface{}) {}
 
 var ociLayoutFileData = []byte(`{"imageLayoutVersion":"1.0.0"}`)

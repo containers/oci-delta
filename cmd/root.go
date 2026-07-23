@@ -1,7 +1,9 @@
 package cmd
 
 import (
+	"context"
 	"fmt"
+	"log/slog"
 	"os"
 
 	"github.com/spf13/cobra"
@@ -27,8 +29,24 @@ func Execute() {
 	}
 }
 
+var logLevel slog.LevelVar
+
+type messageOnlyHandler struct{}
+
+func (h *messageOnlyHandler) Enabled(_ context.Context, l slog.Level) bool {
+	return l >= logLevel.Level()
+}
+
+func (h *messageOnlyHandler) Handle(_ context.Context, r slog.Record) error {
+	_, err := fmt.Fprintln(os.Stderr, r.Message)
+	return err
+}
+
+func (h *messageOnlyHandler) WithAttrs(_ []slog.Attr) slog.Handler { return h }
+func (h *messageOnlyHandler) WithGroup(_ string) slog.Handler      { return h }
+
 func init() {
-	// Global flags can be added here if needed
+	slog.SetDefault(slog.New(&messageOnlyHandler{}))
 }
 
 // Root returns the root cobra command for use by documentation generators.
@@ -40,16 +58,27 @@ func Root() *cobra.Command {
 type Logger interface {
 	Debug(format string, args ...interface{})
 	Warning(format string, args ...interface{})
+	Info(msg string)
+	Infof(format string, args ...interface{})
 }
 
-// cmdLogger implements the Logger interface
+// cmdLogger implements the Logger interface.
+// Info/Infof delegate to slog.Default(); Debug/Warning retain the legacy behavior until the full slog migration (see issue #67).
 type cmdLogger struct {
 	debug bool
 }
 
+func (l *cmdLogger) Info(msg string) {
+	slog.Info(msg)
+}
+
+func (l *cmdLogger) Infof(format string, args ...interface{}) {
+	slog.Info(fmt.Sprintf(format, args...))
+}
+
 func (l *cmdLogger) Debug(format string, args ...interface{}) {
 	if l.debug {
-		fmt.Printf(format+"\n", args...)
+		fmt.Fprintf(os.Stderr, format+"\n", args...)
 	}
 }
 

@@ -65,16 +65,18 @@ func CreateDelta(oldReader OCIReader, newReader OCIReader, writer OCIWriter, opt
 	}
 	stats.ProcessedLayers = len(newOnlyLayers)
 	stats.SkippedLayers = len(new.layers) - len(newOnlyLayers)
-	log.Debug("Layers with new content (will process): %d", stats.ProcessedLayers)
-	log.Debug("Layers with existing content (will skip): %d", stats.SkippedLayers)
 
-	log.Debug("\nProcessing layers...")
+	log.Infof("Found %d layer(s) to diff, %d layer(s) unchanged", stats.ProcessedLayers, stats.SkippedLayers)
+
+	log.Info("\nProcessing layers...")
 
 	for _, l := range new.layers {
 		if !newOnlyLayers[l.Digest] {
 			log.Debug("  Skipping layer with existing content %s", l.Digest.Encoded()[:16])
 		}
 	}
+
+	log.Infof("   Skipped %d layer(s) with existing content", stats.SkippedLayers)
 
 	layerResults, err := computeLayerDiffsParallel(log, old, new, newOnlyLayers, opts.TmpDir, opts.Parallelism)
 	if err != nil {
@@ -407,7 +409,8 @@ func computeLayerDiff(log Logger, old *OCIImage, new *OCIImage, blobDigest diges
 	}
 	sizeReader.Close()
 
-	log.Debug("  Computing diff for layer %d/%d %s (%d bytes)", layerNum, total, blobDigest.Encoded()[:16], originalSize)
+	log.Infof("   Computing diff for layer %d/%d", layerNum, total)
+	log.Debug("     Layer %s (%d bytes)", blobDigest.Encoded()[:16], originalSize)
 
 	tmpFile, err := os.CreateTemp(tmpDir, "oci-delta-*.tar-diff")
 	if err != nil {
