@@ -1,6 +1,6 @@
 # oci-delta
 
-oci-delta is a tool to take two oci archive files, called the "old and "new" image below)
+oci-delta is a tool to take two oci archive files, called the "old" and "new" image below,
 containing bootc images and producing a resulting file, called a "delta" that can be used to update
 a bootc host with the old image installed to the new image, without having the new oci archive
 available.  The advantage of using the delta is that it is significantly smaller, as it avoids
@@ -9,9 +9,9 @@ shipping data that is already locally available from the installed old image.
 ## Mode of operation
 
 An OCI image (and thus OCI archive) consists of some json metadata, and a list of compressed tar
-files, one for each image layer. Each layer is references from the metadata twice, once (the digest
+files, one for each image layer. Each layer is referenced from the metadata twice, once (the digest
 id) by sha256 digest of the compressed tar file, and once (the diff id) by the sha256 digest of the
-uncompressed file. The later is important because various operations can cause layers to be
+uncompressed file. The latter is important because various operations can cause layers to be
 recompressed, but using the diff_id we can ensure we're referencing the same data.
 
 When bootc installs a new image (both when pulling from a registry or from an OCI archive), it will
@@ -20,13 +20,13 @@ there is a match, the layer in the image isn't even looked at.
 
 This allows the first level of deltas in oci-delta, we just generate a normal OCI image that
 leaves out the tar files for the layers that will already be installed. Such an oci archive can be
-installed with a command like `bootc switch --transport oci-archive $FILE`.
+installed with a command like `bootc switch --transport=oci-archive $FILE`.
 
 The above is helped by the layer chunking that is typically done for bootc images. At the build time
 bootc tries to find related files (typically those installed from the same package), and puts them
 in separate layers. If two different images install the same package version they are likely to end
 up with an identical layer, even if the images are not directly related. This allows the first level
-of delta support to be more efficient than you would otherwise thing.
+of delta support to be more efficient than you would otherwise think.
 
 The second level of delta is at the file level inside each layer. Even if a layer has changed, often
 many files are identical, and others are similar to the previous version of the same file. On a
@@ -60,7 +60,7 @@ where the diff is smaller than the original layer file.
 There is one problem with this approach. The deltas (by their nature) work on the uncompressed layer
 tar files, so we have to recompress after reconstruction. This means the reconstructed image will
 have a manifest with different digest ids for the delta layers. The diff_id of the layers will be the
-same though, so bootc (at least a recent enought version) will be able to know that these layers
+same though, so bootc (at least a recent enough version) will be able to know that these layers
 are the same.
 
 ## Example usage
@@ -72,9 +72,9 @@ $ oci-delta create old.oci-archive new.oci-archive update.oci-delta
 
 Apply a delta on a bootc system.
 ```
-$ oci-delta create update.oci-delta new.oci-archive
-$ bootc switch --transport=oci-archive new.oci-archive
-$ rm new.oci-archive
+$ oci-delta apply update.oci-delta reconstructed.oci-archive
+$ bootc switch --transport=oci-archive reconstructed.oci-archive
+$ rm update.oci-delta reconstructed.oci-archive
 ```
 
 ## Delta sizes
@@ -108,6 +108,27 @@ There is a script `tools/analyze-delta.py` in the repo that analyzes the produce
 detail if you pass `--verbose`). This allows you to see in more detail what is being reused.
 
 
+## E2E Testing
+
+End-to-end tests validate the full delta create/apply/bootc-switch workflow using real Fedora bootc images.
+
+```
+make test-e2e
+```
+
+The test auto-detects the environment:
+- **VM mode** (requires KVM + libvirt): builds a bootc VM, creates and applies a delta inside it, reboots, and verifies the new deployment with `bootc status`.
+- **Container mode** (fallback): runs in a privileged container. Validates delta create/apply and image integrity, but cannot verify the reboot cycle.
+
+Override the test images or mode with environment variables:
+```
+BASE_IMAGE=quay.io/fedora/fedora-bootc:43 TARGET_IMAGE=quay.io/fedora/fedora-bootc:44 TEST_MODE=vm make test-e2e
+```
+
+VM mode requires sudo access for `bootc-image-builder` and libvirt operations.
+
+CI runs E2E tests on [Testing Farm](https://docs.testing-farm.io/) via [Packit](https://packit.dev/) (`.packit.yaml`), which provisions KVM-capable infrastructure for full VM-mode testing.
+
 ## Requirements
 
 The target system has to run a bootc version 1.15.0 or later, that contains [the fix to use layer
@@ -121,7 +142,7 @@ available in the current main branch. This is not yet in a release, but will be 
 A delta file is an uncompressed tar archive containing an [OCI image
 layout](https://github.com/opencontainers/image-spec/blob/main/image-layout.md), where the single manifest describes a
 delta artifact rather than a runnable image. This is an oci-archive form that matches what would normally be used
-for OCI artifacts, and the delta could indeed be stored in a registy as an oci artifact.
+for OCI artifacts, and the delta could indeed be stored in a registry as an oci artifact.
 
 This format is very similar to the one described in https://github.com/flatpak/flatpak-oci-specs, but with these
 changes:
@@ -129,7 +150,7 @@ changes:
  * The delta manifest uses `artifactType` instead of a custom config mimetype.
  * We store the original manifests as layers (to make the delta applicable stand-alone).
  * Delta layer order doesn't exactly match the original "new" image, and all layers need not be available.
- * Layers that are used as-is from the original "old" image are recorded in a new `delta.reused` annotation..
+ * Layers that are used as-is from the original "old" image are recorded in a new `delta.reused` annotation.
  * We allow layers to be stored as the original tar.gz (if delta was not helpful for that layer).
  * The `delta.from` layer annotation is no longer used, as we diff against all layers in source image.
  * We support embedding cosign signatures
@@ -306,5 +327,5 @@ layer descriptors with their original annotations (the actual cryptographic sign
 certificate chain, and Rekor transparency log bundle).
 
 At import time, the consumer can extract the signature manifest from layers annotated with
-`io.github.containers.delta.content' of `cosign-signature` and `cosign-signature-content`, then verify the
+`io.github.containers.delta.content` of `cosign-signature` and `cosign-signature-content`, then verify the
 signature against the embedded image manifest digest using the appropriate policy and keys.

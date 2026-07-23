@@ -97,3 +97,10 @@ jobs:
       - "fedora-latest-stable"
       - "fedora-latest"
       - "fedora-rawhide"
+
+  # E2E tests on Testing Farm
+  - job: tests
+    trigger: pull_request
+    targets:
+      - "fedora-latest-stable-x86_64"
+    tmt_plan: "e2e"

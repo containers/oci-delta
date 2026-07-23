@@ -1,0 +1,13 @@
+# Configuration for bootc-image-builder E2E test VM
+# Creates a user that the test script can SSH into
+
+[[customizations.user]]
+name = "fedora"
+password = "admin"
+groups = ["wheel"]
+
+# Enable passwordless sudo for wheel group (needed for automated testing)
+[[customizations.files]]
+path = "/etc/sudoers.d/wheel-nopasswd"
+data = "%wheel ALL=(ALL) NOPASSWD: ALL\n"
+mode = "0440"

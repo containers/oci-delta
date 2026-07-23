@@ -23,6 +23,7 @@ In order to properly build, test, and lint the project, you need to have the fol
 - `golangci-lint` >= 2.12
 - `make`
 - `python3`, `podman`, `jq` (for testing)
+- `qemu-kvm`, `qemu-img`, `libvirt`, `virt-install`, `sshpass` (for VM-mode E2E testing)
 - `go-md2man` (for regenerating the man page)
 
 ## Getting Started
