@@ -26,10 +26,14 @@ type CreateStats struct {
 }
 
 type CreateOptions struct {
-	TmpDir           string
-	Parallelism      int                      // max concurrent tar-diff workers; 0 means GOMAXPROCS
-	Signatures       []OCIReader              // signature OCI artifacts to embed in the delta
-	BinaryDiffMethod tardiff.BinaryDiffMethod // bsdiff (default) or zstd dictionary patches
+	TmpDir              string
+	Parallelism         int                      // max concurrent tar-diff workers; 0 means GOMAXPROCS
+	Signatures          []OCIReader              // signature OCI artifacts to embed in the delta
+	BinaryDiffMethod    tardiff.BinaryDiffMethod // bsdiff (default) or zstd dictionary patches
+	CompressionLevel    int                      // outer tar-diff zstd level; 0 means tar-diff default
+	ZstdDiffLevel       *int                     // per-file zstd patch level; nil keeps tar-diff default (<0 => compression level)
+	ZstdDiffWindowMiB   *int                     // zstd window MiB; nil/0 means auto from source size
+	ZstdDiffFallbackRaw *bool                    // nil means tar-diff default (true)
 }
 
 func CreateDelta(oldReader OCIReader, newReader OCIReader, writer OCIWriter, opts CreateOptions, log *slog.Logger) (*CreateStats, error) {
@@ -80,7 +84,7 @@ func CreateDelta(oldReader OCIReader, newReader OCIReader, writer OCIWriter, opt
 
 	log.Info(fmt.Sprintf("   Skipped %d layer(s) with existing content", stats.SkippedLayers))
 
-	layerResults, err := computeLayerDiffsParallel(log, old, new, newOnlyLayers, opts.TmpDir, opts.Parallelism, opts.BinaryDiffMethod)
+	layerResults, err := computeLayerDiffsParallel(log, old, new, newOnlyLayers, opts)
 	if err != nil {
 		return nil, err
 	}
@@ -335,7 +339,7 @@ type layerDiffResult struct {
 	diffDigest   digest.Digest // sha256 of the diff file blob
 }
 
-func computeLayerDiffsParallel(log *slog.Logger, old *OCIImage, new *OCIImage, newOnlyLayers map[digest.Digest]bool, tmpDir string, parallelism int, binaryDiffMethod tardiff.BinaryDiffMethod) ([]layerDiffResult, error) {
+func computeLayerDiffsParallel(log *slog.Logger, old *OCIImage, new *OCIImage, newOnlyLayers map[digest.Digest]bool, opts CreateOptions) ([]layerDiffResult, error) {
 	layers := make([]digest.Digest, 0, len(newOnlyLayers))
 	for d := range newOnlyLayers {
 		layers = append(layers, d)
@@ -346,8 +350,20 @@ func computeLayerDiffsParallel(log *slog.Logger, old *OCIImage, new *OCIImage, n
 	diffOpts := tardiff.NewOptions()
 	diffOpts.SetIgnoreSourcePrefixes([]string{"sysroot/ostree/"})
 	diffOpts.SetApplyWhiteouts(true)
-	diffOpts.SetTmpDir(tmpDir)
-	diffOpts.SetBinaryDiffMethod(binaryDiffMethod)
+	diffOpts.SetTmpDir(opts.TmpDir)
+	diffOpts.SetBinaryDiffMethod(opts.BinaryDiffMethod)
+	if opts.CompressionLevel > 0 {
+		diffOpts.SetCompressionLevel(opts.CompressionLevel)
+	}
+	if opts.ZstdDiffLevel != nil {
+		diffOpts.SetZstdDiffLevel(*opts.ZstdDiffLevel)
+	}
+	if opts.ZstdDiffWindowMiB != nil {
+		diffOpts.SetZstdDiffWindow(*opts.ZstdDiffWindowMiB * 1024 * 1024)
+	}
+	if opts.ZstdDiffFallbackRaw != nil {
+		diffOpts.SetZstdDiffFallbackRaw(*opts.ZstdDiffFallbackRaw)
+	}
 
 	var oldFiles []io.ReadSeeker
 
@@ -368,6 +384,7 @@ func computeLayerDiffsParallel(log *slog.Logger, old *OCIImage, new *OCIImage, n
 	results := make([]layerDiffResult, len(layers))
 	errs := make([]error, len(layers))
 
+	parallelism := opts.Parallelism
 	if parallelism <= 0 {
 		parallelism = runtime.GOMAXPROCS(0)
 	}
@@ -382,7 +399,7 @@ func computeLayerDiffsParallel(log *slog.Logger, old *OCIImage, new *OCIImage, n
 			defer wg.Done()
 			sem <- struct{}{}
 			defer func() { <-sem }()
-			results[i], errs[i] = computeLayerDiff(log, old, new, d, i+1, total, tmpDir, sources, diffOpts)
+			results[i], errs[i] = computeLayerDiff(log, old, new, d, i+1, total, opts.TmpDir, sources, diffOpts)
 		}()
 	}
 

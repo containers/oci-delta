@@ -375,16 +375,15 @@ def analyze_layer(blob):
         elif op == OP_ADDDATA:
             advance_reused(size, OP_ADDDATA, data)
         elif op == OP_ZSTDDICT:
-            # Attribute reconstructed bytes as reused when the frame advertises size.
-            out_size = 0
+            # Attribute reconstructed bytes as reused; frame must carry content size
+            # (tar-diff encodes these with zstd single-segment frames).
             try:
                 params = zstd.get_frame_parameters(data)
-                if params.content_size != zstd.CONTENTSIZE_UNKNOWN:
-                    out_size = params.content_size
-            except zstd.ZstdError:
-                pass
-            if out_size:
-                advance_reused(out_size, OP_COPY)
+            except zstd.ZstdError as e:
+                raise ValueError(f"invalid ZstdDict frame: {e}") from e
+            if params.content_size == zstd.CONTENTSIZE_UNKNOWN:
+                raise ValueError("ZstdDict frame missing content size")
+            advance_reused(params.content_size, OP_COPY)
         # OP_SEEK: no output bytes
 
     return files, hardlinks

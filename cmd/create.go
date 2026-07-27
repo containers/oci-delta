@@ -12,11 +12,15 @@ import (
 )
 
 var (
-	createStatistics  bool
-	createVerbose     bool // deprecated alias for --statistics, kept hidden for compatibility
-	createParallelism int
-	createSignatures  []string
-	createBinaryDiff  string
+	createStatistics        bool
+	createVerbose           bool // deprecated alias for --statistics, kept hidden for compatibility
+	createParallelism       int
+	createSignatures        []string
+	createBinaryDiff        string
+	createCompressionLevel  int
+	createZstdDiffLevel     int
+	createZstdDiffWindowMiB int
+	createZstdDiffFallback  bool
 )
 
 var createCmd = &cobra.Command{
@@ -42,6 +46,10 @@ func init() {
 	_ = createCmd.Flags().MarkHidden("verbose")
 	createCmd.Flags().IntVarP(&createParallelism, "jobs", "j", 0, "max parallel tar-diff workers (default: number of CPUs)")
 	createCmd.Flags().StringVar(&createBinaryDiff, "binary-diff", "bsdiff", "per-file binary diff method: bsdiff or zstd")
+	createCmd.Flags().IntVar(&createCompressionLevel, "compression-level", 0, "outer tar-diff zstd level (0 = tar-diff default)")
+	createCmd.Flags().IntVar(&createZstdDiffLevel, "zstd-diff-level", -1, "zstd level for dictionary patches (-1 = use compression-level/default)")
+	createCmd.Flags().IntVar(&createZstdDiffWindowMiB, "zstd-diff-window", 0, "zstd window size in MiB for dictionary patches (0 = auto)")
+	createCmd.Flags().BoolVar(&createZstdDiffFallback, "zstd-diff-fallback-raw", true, "emit raw data when a zstd dictionary patch is not smaller")
 	createCmd.Flags().StringArrayVar(&createSignatures, "signature", nil, "signature OCI artifact to embed (can be specified multiple times)")
 	addLogFlags(createCmd)
 }
@@ -102,12 +110,22 @@ func runCreate(cmd *cobra.Command, args []string) error {
 	if err != nil {
 		return err
 	}
+	if createZstdDiffWindowMiB < 0 {
+		return fmt.Errorf("invalid --zstd-diff-window %d", createZstdDiffWindowMiB)
+	}
 
+	zstdDiffLevel := createZstdDiffLevel
+	zstdDiffWindow := createZstdDiffWindowMiB
+	fallbackRaw := createZstdDiffFallback
 	stats, err := ocidelta.CreateDelta(oldReader, newReader, writer, ocidelta.CreateOptions{
-		TmpDir:           tmpDir,
-		Parallelism:      createParallelism,
-		Signatures:       sigReaders,
-		BinaryDiffMethod: binaryDiffMethod,
+		TmpDir:              tmpDir,
+		Parallelism:         createParallelism,
+		Signatures:          sigReaders,
+		BinaryDiffMethod:    binaryDiffMethod,
+		CompressionLevel:    createCompressionLevel,
+		ZstdDiffLevel:       &zstdDiffLevel,
+		ZstdDiffWindowMiB:   &zstdDiffWindow,
+		ZstdDiffFallbackRaw: &fallbackRaw,
 	}, log)
 	if err != nil {
 		writer.Close()
