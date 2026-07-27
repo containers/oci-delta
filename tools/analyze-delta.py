@@ -13,7 +13,7 @@ except ImportError:
     sys.exit("error: 'zstandard' package required — pip install zstandard")
 
 MAGIC = b'tardf1\n\x00'
-OP_DATA, OP_OPEN, OP_COPY, OP_ADDDATA, OP_SEEK = 0, 1, 2, 3, 4
+OP_DATA, OP_OPEN, OP_COPY, OP_ADDDATA, OP_SEEK, OP_ZSTDDICT = 0, 1, 2, 3, 4, 5
 TAR_BLOCK = 512
 
 
@@ -145,7 +145,7 @@ def iter_ops(blob):
                 return
             op = b[0]
             size = _varint(buf)
-            if op in (OP_DATA, OP_ADDDATA, OP_OPEN):
+            if op in (OP_DATA, OP_ADDDATA, OP_OPEN, OP_ZSTDDICT):
                 yield op, size, buf.read(size)
             else:
                 yield op, size, None
@@ -374,6 +374,17 @@ def analyze_layer(blob):
             advance_reused(size, OP_COPY)
         elif op == OP_ADDDATA:
             advance_reused(size, OP_ADDDATA, data)
+        elif op == OP_ZSTDDICT:
+            # Attribute reconstructed bytes as reused when the frame advertises size.
+            out_size = 0
+            try:
+                params = zstd.get_frame_parameters(data)
+                if params.content_size != zstd.CONTENTSIZE_UNKNOWN:
+                    out_size = params.content_size
+            except zstd.ZstdError:
+                pass
+            if out_size:
+                advance_reused(out_size, OP_COPY)
         # OP_SEEK: no output bytes
 
     return files, hardlinks

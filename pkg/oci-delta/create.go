@@ -26,9 +26,10 @@ type CreateStats struct {
 }
 
 type CreateOptions struct {
-	TmpDir      string
-	Parallelism int         // max concurrent tar-diff workers; 0 means GOMAXPROCS
-	Signatures  []OCIReader // signature OCI artifacts to embed in the delta
+	TmpDir           string
+	Parallelism      int                      // max concurrent tar-diff workers; 0 means GOMAXPROCS
+	Signatures       []OCIReader              // signature OCI artifacts to embed in the delta
+	BinaryDiffMethod tardiff.BinaryDiffMethod // bsdiff (default) or zstd dictionary patches
 }
 
 func CreateDelta(oldReader OCIReader, newReader OCIReader, writer OCIWriter, opts CreateOptions, log *slog.Logger) (*CreateStats, error) {
@@ -79,7 +80,7 @@ func CreateDelta(oldReader OCIReader, newReader OCIReader, writer OCIWriter, opt
 
 	log.Info(fmt.Sprintf("   Skipped %d layer(s) with existing content", stats.SkippedLayers))
 
-	layerResults, err := computeLayerDiffsParallel(log, old, new, newOnlyLayers, opts.TmpDir, opts.Parallelism)
+	layerResults, err := computeLayerDiffsParallel(log, old, new, newOnlyLayers, opts.TmpDir, opts.Parallelism, opts.BinaryDiffMethod)
 	if err != nil {
 		return nil, err
 	}
@@ -334,7 +335,7 @@ type layerDiffResult struct {
 	diffDigest   digest.Digest // sha256 of the diff file blob
 }
 
-func computeLayerDiffsParallel(log *slog.Logger, old *OCIImage, new *OCIImage, newOnlyLayers map[digest.Digest]bool, tmpDir string, parallelism int) ([]layerDiffResult, error) {
+func computeLayerDiffsParallel(log *slog.Logger, old *OCIImage, new *OCIImage, newOnlyLayers map[digest.Digest]bool, tmpDir string, parallelism int, binaryDiffMethod tardiff.BinaryDiffMethod) ([]layerDiffResult, error) {
 	layers := make([]digest.Digest, 0, len(newOnlyLayers))
 	for d := range newOnlyLayers {
 		layers = append(layers, d)
@@ -346,6 +347,7 @@ func computeLayerDiffsParallel(log *slog.Logger, old *OCIImage, new *OCIImage, n
 	diffOpts.SetIgnoreSourcePrefixes([]string{"sysroot/ostree/"})
 	diffOpts.SetApplyWhiteouts(true)
 	diffOpts.SetTmpDir(tmpDir)
+	diffOpts.SetBinaryDiffMethod(binaryDiffMethod)
 
 	var oldFiles []io.ReadSeeker
 

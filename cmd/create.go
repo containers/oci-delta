@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	ocidelta "github.com/containers/oci-delta/pkg/oci-delta"
+	tardiff "github.com/containers/tar-diff/pkg/tar-diff"
 	"github.com/spf13/cobra"
 )
 
@@ -15,6 +16,7 @@ var (
 	createVerbose     bool // deprecated alias for --statistics, kept hidden for compatibility
 	createParallelism int
 	createSignatures  []string
+	createBinaryDiff  string
 )
 
 var createCmd = &cobra.Command{
@@ -39,6 +41,7 @@ func init() {
 	createCmd.Flags().BoolVarP(&createVerbose, "verbose", "v", false, "show statistics after creation")
 	_ = createCmd.Flags().MarkHidden("verbose")
 	createCmd.Flags().IntVarP(&createParallelism, "jobs", "j", 0, "max parallel tar-diff workers (default: number of CPUs)")
+	createCmd.Flags().StringVar(&createBinaryDiff, "binary-diff", "bsdiff", "per-file binary diff method: bsdiff or zstd")
 	createCmd.Flags().StringArrayVar(&createSignatures, "signature", nil, "signature OCI artifact to embed (can be specified multiple times)")
 	addLogFlags(createCmd)
 }
@@ -95,10 +98,16 @@ func runCreate(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("failed to create output: %w", err)
 	}
 
+	binaryDiffMethod, err := parseBinaryDiffMethod(createBinaryDiff)
+	if err != nil {
+		return err
+	}
+
 	stats, err := ocidelta.CreateDelta(oldReader, newReader, writer, ocidelta.CreateOptions{
-		TmpDir:      tmpDir,
-		Parallelism: createParallelism,
-		Signatures:  sigReaders,
+		TmpDir:           tmpDir,
+		Parallelism:      createParallelism,
+		Signatures:       sigReaders,
+		BinaryDiffMethod: binaryDiffMethod,
 	}, log)
 	if err != nil {
 		writer.Close()
@@ -151,4 +160,15 @@ func runCreate(cmd *cobra.Command, args []string) error {
 	log.Debug("Delta filepath output", "path", outputPath)
 
 	return nil
+}
+
+func parseBinaryDiffMethod(value string) (tardiff.BinaryDiffMethod, error) {
+	switch value {
+	case "bsdiff":
+		return tardiff.BinaryDiffBsdiff, nil
+	case "zstd":
+		return tardiff.BinaryDiffZstd, nil
+	default:
+		return 0, fmt.Errorf("invalid --binary-diff %q (want bsdiff or zstd)", value)
+	}
 }

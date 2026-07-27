@@ -62,3 +62,5 @@ require (
 	google.golang.org/grpc v1.75.0 // indirect
 	google.golang.org/protobuf v1.36.11 // indirect
 )
+
+replace github.com/containers/tar-diff => github.com/asafbennatan/tar-diff v0.0.0-20260727073545-0ceacd8c3220
