@@ -30,7 +30,9 @@ test-coverage:
 	go test -cover ./... -args -test.gocoverdir=$(COVERDIR)/unit
 	GOCOVERDIR=$(COVERDIR)/integration python3 tests/test-synthetic.py
 	GOCOVERDIR=$(COVERDIR)/integration tests/integration-test.sh
-	go tool covdata percent -i $(COVERDIR)/unit,$(COVERDIR)/integration
+	go tool covdata percent -i=$(COVERDIR)/unit,$(COVERDIR)/integration
+	go tool covdata textfmt -i=$(COVERDIR)/unit -o=$(COVERDIR)/unit.out
+	go tool covdata textfmt -i=$(COVERDIR)/integration -o=$(COVERDIR)/integration.out
 
 test-e2e: build
 	@echo "Running E2E tests (requires KVM for full coverage, falls back to container mode)"

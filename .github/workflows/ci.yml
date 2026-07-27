@@ -47,6 +47,9 @@ jobs:
 
   test:
     runs-on: ubuntu-latest
+    permissions:
+      id-token: write
+      contents: read
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-go@v7
@@ -60,7 +63,11 @@ jobs:
         run: sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
       - name: Run tests with coverage
         run: make test-coverage
-
+      - name: Upload results to Codecov
+        uses: codecov/codecov-action@v7
+        with:
+          use_oidc: true
+          files: .coverdata/unit.out,.coverdata/integration.out
   test-fedora:
     runs-on: ubuntu-latest
     container:

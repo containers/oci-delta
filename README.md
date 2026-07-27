@@ -1,3 +1,5 @@
+[![codecov](https://codecov.io/gh/containers/oci-delta/branch/main/graph/badge.svg)](https://codecov.io/gh/containers/oci-delta)
+
 # oci-delta
 
 oci-delta is a tool to take two oci archive files, called the "old" and "new" image below,
