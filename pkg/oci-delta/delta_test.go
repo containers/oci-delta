@@ -129,7 +129,7 @@ func TestParseDeltaArtifact(t *testing.T) {
 		contentLayer(digest.FromString("other"), "something-else", nil),
 	)
 
-	d, err := ParseDeltaArtifact(f.reader(), &testLogger{})
+	d, err := ParseDeltaArtifact(f.reader(), discardLogger())
 	if err != nil {
 		t.Fatalf("ParseDeltaArtifact() unexpected error: %v", err)
 	}
@@ -174,7 +174,7 @@ func TestParseDeltaArtifactSkipsBadSignatures(t *testing.T) {
 		contentLayer(f.addBlob([]byte("not json")), "cosign-signature", nil),
 	)
 
-	d, err := ParseDeltaArtifact(f.reader(), &testLogger{})
+	d, err := ParseDeltaArtifact(f.reader(), discardLogger())
 	if err != nil {
 		t.Fatalf("ParseDeltaArtifact() unexpected error: %v", err)
 	}
@@ -277,7 +277,7 @@ func TestParseDeltaArtifactErrors(t *testing.T) {
 				r = f.reader()
 			}
 
-			_, err := ParseDeltaArtifact(r, &testLogger{})
+			_, err := ParseDeltaArtifact(r, discardLogger())
 			if err == nil {
 				t.Fatal("ParseDeltaArtifact() expected error, got nil")
 			}

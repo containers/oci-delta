@@ -47,7 +47,7 @@ func createTestOstreeRepo(t *testing.T) (repoPath, ref string) {
 func TestOstreeDataSourceReadFile(t *testing.T) {
 	repoPath, ref := createTestOstreeRepo(t)
 
-	ds, err := NewOstreeRepoDataSource(repoPath, ref, SilentLogger{})
+	ds, err := NewOstreeRepoDataSource(repoPath, ref, discardLogger())
 	if err != nil {
 		t.Fatalf("NewOstreeRepoDataSource: %v", err)
 	}
@@ -70,7 +70,7 @@ func TestOstreeDataSourceReadFile(t *testing.T) {
 func TestOstreeDataSourceEtcFallback(t *testing.T) {
 	repoPath, ref := createTestOstreeRepo(t)
 
-	ds, err := NewOstreeRepoDataSource(repoPath, ref, SilentLogger{})
+	ds, err := NewOstreeRepoDataSource(repoPath, ref, discardLogger())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -93,7 +93,7 @@ func TestOstreeDataSourceEtcFallback(t *testing.T) {
 func TestOstreeDataSourceFileNotFound(t *testing.T) {
 	repoPath, ref := createTestOstreeRepo(t)
 
-	ds, err := NewOstreeRepoDataSource(repoPath, ref, SilentLogger{})
+	ds, err := NewOstreeRepoDataSource(repoPath, ref, discardLogger())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -107,7 +107,7 @@ func TestOstreeDataSourceFileNotFound(t *testing.T) {
 func TestOstreeDataSourceSeek(t *testing.T) {
 	repoPath, ref := createTestOstreeRepo(t)
 
-	ds, err := NewOstreeRepoDataSource(repoPath, ref, SilentLogger{})
+	ds, err := NewOstreeRepoDataSource(repoPath, ref, discardLogger())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -135,7 +135,7 @@ func TestOstreeDataSourceSeek(t *testing.T) {
 func TestOstreeDataSourceSwitchFile(t *testing.T) {
 	repoPath, ref := createTestOstreeRepo(t)
 
-	ds, err := NewOstreeRepoDataSource(repoPath, ref, SilentLogger{})
+	ds, err := NewOstreeRepoDataSource(repoPath, ref, discardLogger())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -158,7 +158,7 @@ func TestOstreeDataSourceSwitchFile(t *testing.T) {
 func TestOstreeDataSourceReadNoFile(t *testing.T) {
 	repoPath, ref := createTestOstreeRepo(t)
 
-	ds, err := NewOstreeRepoDataSource(repoPath, ref, SilentLogger{})
+	ds, err := NewOstreeRepoDataSource(repoPath, ref, discardLogger())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -174,7 +174,7 @@ func TestOstreeDataSourceReadNoFile(t *testing.T) {
 }
 
 func TestOstreeDataSourceInvalidRepo(t *testing.T) {
-	_, err := NewOstreeRepoDataSource("/nonexistent", "ref", SilentLogger{})
+	_, err := NewOstreeRepoDataSource("/nonexistent", "ref", discardLogger())
 	if err == nil {
 		t.Fatal("expected error for nonexistent repo")
 	}

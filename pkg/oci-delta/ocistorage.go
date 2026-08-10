@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"log/slog"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -35,7 +36,7 @@ type OCIWriter interface {
 	Close() error
 }
 
-func OpenOCIReader(ref string, tmpDir string, log Logger) (OCIReader, error) {
+func OpenOCIReader(ref string, tmpDir string, log *slog.Logger) (OCIReader, error) {
 	if strings.HasPrefix(ref, "containers-storage:") {
 		csRef := ref[len("containers-storage:"):]
 
@@ -438,7 +439,9 @@ type csOCIReader struct {
 	store          storage.Store
 }
 
-func exportStorageLayers(store storage.Store, manifest *v1.Manifest, diffIDs []digest.Digest, exportDir string, log Logger) (map[string]string, map[string]digest.Digest, error) {
+func exportStorageLayers(store storage.Store, manifest *v1.Manifest, diffIDs []digest.Digest, exportDir string,
+	log *slog.Logger) (map[string]string, map[string]digest.Digest, error) {
+
 	layerFiles := make(map[string]string)
 	layerDigests := make(map[string]digest.Digest)
 
@@ -483,15 +486,13 @@ func exportStorageLayers(store storage.Store, manifest *v1.Manifest, diffIDs []d
 		layerFiles[blobName] = layerPath
 		layerDigests[blobName] = digest.NewDigestFromBytes(digest.SHA256, h.Sum(nil))
 
-		if log != nil {
-			log.Debug("  Exported layer %d/%d %s", i+1, len(manifest.Layers), layerDesc.Digest.Encoded()[:16])
-		}
+		log.Debug("  Exported layer", "index", i+1, "total", len(manifest.Layers), "digest", layerDesc.Digest.Encoded()[:16])
 	}
 
 	return layerFiles, layerDigests, nil
 }
 
-func newCSReader(store storage.Store, img *storage.Image, tmpDir string, log Logger) (*csOCIReader, error) {
+func newCSReader(store storage.Store, img *storage.Image, tmpDir string, log *slog.Logger) (*csOCIReader, error) {
 	manifestData, err := store.ImageBigData(img.ID, "manifest")
 	if err != nil {
 		return nil, fmt.Errorf("failed to read manifest: %w", err)
@@ -526,9 +527,7 @@ func newCSReader(store storage.Store, img *storage.Image, tmpDir string, log Log
 
 	extracted, err := ExtractContainerStorageSignatures(store, img.ID, log)
 	if err != nil {
-		if log != nil {
-			log.Debug("Could not extract signatures: %v", err)
-		}
+		log.Debug("could not extract signatures", "error", err)
 	} else {
 		sigs = extracted
 	}

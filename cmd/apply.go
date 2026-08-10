@@ -15,7 +15,6 @@ var (
 	applyDirectorySource  string
 	applyContainerStorage string
 	applyVerifyKey        string
-	applyDebug            bool
 	repoExplicit          bool
 )
 
@@ -44,7 +43,7 @@ func init() {
 	applyCmd.Flags().StringVar(&applyDirectorySource, "directory", "", "source directory for delta reconstruction (alternative to --ostree-repo)")
 	applyCmd.Flags().StringVar(&applyContainerStorage, "container-storage", "", "podman container storage root for delta reconstruction (alternative to --ostree-repo)")
 	applyCmd.Flags().StringVar(&applyVerifyKey, "verify-key", "", "path to cosign public key PEM file for signature verification")
-	applyCmd.Flags().BoolVar(&applyDebug, "debug", false, "show detailed progress information")
+	addLogFlags(applyCmd)
 }
 
 func runApply(cmd *cobra.Command, args []string) error {
@@ -71,9 +70,9 @@ func runApply(cmd *cobra.Command, args []string) error {
 	}
 	defer os.RemoveAll(tmpDir)
 
-	log := &cmdLogger{debug: applyDebug}
+	log := newLogger()
 
-	log.Debug("Opening delta: %s", args[0])
+	log.Debug("Opening delta", "delta", args[0])
 
 	deltaReader, err := ocidelta.OpenOCIReader(args[0], tmpDir, log)
 	if err != nil {
@@ -90,7 +89,7 @@ func runApply(cmd *cobra.Command, args []string) error {
 	defer delta.Close()
 
 	if applyVerifyKey != "" {
-		log.Debug("Verifying signature with key: %s", applyVerifyKey)
+		log.Debug("verifying signature", "key", applyVerifyKey)
 
 		verifier, err := sigstoreSignature.LoadVerifierFromPEMFile(applyVerifyKey, crypto.SHA256)
 		if err != nil {

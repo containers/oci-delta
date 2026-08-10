@@ -2,7 +2,6 @@ package cmd
 
 import (
 	"fmt"
-	"log/slog"
 	"os"
 	"path/filepath"
 	"strings"
@@ -12,9 +11,8 @@ import (
 )
 
 var (
-	createVerbose     bool
-	createDebug       bool
-	createQuiet       bool
+	createStatistics  bool
+	createVerbose     bool // deprecated alias for --statistics, kept hidden for compatibility
 	createParallelism int
 	createSignatures  []string
 )
@@ -37,11 +35,12 @@ If no type prefix is given, oci-archive: is assumed.`,
 func init() {
 	rootCmd.AddCommand(createCmd)
 
+	createCmd.Flags().BoolVarP(&createStatistics, "statistics", "s", false, "show statistics after creation")
 	createCmd.Flags().BoolVarP(&createVerbose, "verbose", "v", false, "show statistics after creation")
-	createCmd.Flags().BoolVar(&createDebug, "debug", false, "show detailed progress information")
+	_ = createCmd.Flags().MarkHidden("verbose")
 	createCmd.Flags().IntVarP(&createParallelism, "jobs", "j", 0, "max parallel tar-diff workers (default: number of CPUs)")
 	createCmd.Flags().StringArrayVar(&createSignatures, "signature", nil, "signature OCI artifact to embed (can be specified multiple times)")
-	createCmd.Flags().BoolVarP(&createQuiet, "quiet", "q", false, "suppress all default output (does not affect --debug or --verbose)")
+	addLogFlags(createCmd)
 }
 
 // Used in info output for simpler feedback.
@@ -56,14 +55,9 @@ func runCreate(cmd *cobra.Command, args []string) error {
 	}
 	defer os.RemoveAll(tmpDir)
 
-	// This set of conditions is required here while the custom logger is being phased out.
-	if createQuiet && !createDebug {
-		logLevel.Set(slog.LevelError)
-	}
+	log := newLogger()
 
-	log := &cmdLogger{debug: createDebug}
-
-	log.Debug("Opening old image: %s", args[0])
+	log.Debug("Opening old image", "image", args[0])
 
 	oldReader, err := ocidelta.OpenOCIReader(args[0], tmpDir, log)
 	if err != nil {
@@ -71,7 +65,7 @@ func runCreate(cmd *cobra.Command, args []string) error {
 	}
 	defer oldReader.Close()
 
-	log.Debug("Opening new image: %s", args[1])
+	log.Debug("Opening new image", "image", args[1])
 
 	newReader, err := ocidelta.OpenOCIReader(args[1], tmpDir, log)
 	if err != nil {
@@ -82,11 +76,11 @@ func runCreate(cmd *cobra.Command, args []string) error {
 	sigReaders := ocidelta.ExtractedSignatures(newReader)
 
 	if len(createSignatures) > 0 {
-		log.Infof("Embedding %d signature(s)", len(createSignatures))
+		log.Info(fmt.Sprintf("Embedding %d signature(s)", len(createSignatures)))
 	}
 
 	for _, sigPath := range createSignatures {
-		log.Debug("Opening signature: %s", sigPath)
+		log.Debug("opening signature", "path", sigPath)
 
 		sigReader, err := ocidelta.OpenOCIReader(sigPath, tmpDir, log)
 		if err != nil {
@@ -115,17 +109,19 @@ func runCreate(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("failed to write output: %w", err)
 	}
 
-	if !createVerbose && stats != nil {
+	showStats := createStatistics || createVerbose
+
+	if !showStats && stats != nil {
 		if stats.ProcessedLayerBytes > 0 {
 			saved := stats.ProcessedLayerBytes - stats.TarDiffLayerBytes - stats.OriginalLayerBytes
-			log.Infof("\nDelta complete: %d layer(s) diffed, %d reused, bytes saved %.2f%% (%s → %s)", stats.ProcessedLayers, stats.SkippedLayers,
-				float64(saved)/float64(stats.ProcessedLayerBytes)*100, bytesToMB(stats.ProcessedLayerBytes), bytesToMB(stats.ProcessedLayerBytes-saved))
+			log.Info(fmt.Sprintf("\nDelta complete: %d layer(s) diffed, %d reused, bytes saved %.2f%% (%s → %s)", stats.ProcessedLayers, stats.SkippedLayers,
+				float64(saved)/float64(stats.ProcessedLayerBytes)*100, bytesToMB(stats.ProcessedLayerBytes), bytesToMB(stats.ProcessedLayerBytes-saved)))
 		} else {
-			log.Infof("\nDelta complete: %d layer(s) diffed, %d reused", stats.ProcessedLayers, stats.SkippedLayers)
+			log.Info(fmt.Sprintf("\nDelta complete: %d layer(s) diffed, %d reused", stats.ProcessedLayers, stats.SkippedLayers))
 		}
 	}
 
-	if createVerbose && stats != nil {
+	if showStats && stats != nil {
 		fmt.Printf("\nDelta creation statistics:\n")
 		fmt.Printf("  Old image layers: %d\n", stats.OldLayers)
 		fmt.Printf("  New image layers: %d\n", stats.NewLayers)
@@ -142,7 +138,7 @@ func runCreate(cmd *cobra.Command, args []string) error {
 		}
 	}
 
-	log.Infof("Delta written to %s", args[2])
+	log.Info(fmt.Sprintf("Delta written to %s", args[2]))
 
 	outputPath := strings.TrimPrefix(strings.TrimPrefix(args[2], "oci-archive:"), "oci:")
 	if p, _, ok := strings.Cut(outputPath, ":"); ok {
@@ -152,7 +148,7 @@ func runCreate(cmd *cobra.Command, args []string) error {
 	if abs, err := filepath.Abs(outputPath); err == nil {
 		outputPath = abs
 	}
-	log.Debug("Delta filepath output: %s", outputPath)
+	log.Debug("Delta filepath output", "path", outputPath)
 
 	return nil
 }

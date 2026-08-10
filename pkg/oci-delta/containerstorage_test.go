@@ -3,6 +3,7 @@ package ocidelta
 import (
 	"encoding/json"
 	"fmt"
+	"log/slog"
 	"strings"
 	"testing"
 
@@ -564,7 +565,7 @@ func TestFindImageByConfigDigest(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			id, err := findImageByConfigDigest(tt.store, tt.digest, SilentLogger{})
+			id, err := findImageByConfigDigest(tt.store, tt.digest, discardLogger())
 			if tt.wantErr {
 				assertExpectedError(t, err, tt.errContains)
 				return
@@ -659,7 +660,7 @@ func TestResolveContainerStorageDataSource(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			ds, err := ResolveContainerStorageDataSource(tt.store, targetDigest, SilentLogger{})
+			ds, err := ResolveContainerStorageDataSource(tt.store, targetDigest, discardLogger())
 			if tt.wantErr {
 				assertExpectedError(t, err, tt.errContains)
 				return
@@ -688,7 +689,7 @@ func TestExtractContainerStorageSignatures(t *testing.T) {
 		name        string
 		store       *mockContainerStore
 		imageID     string
-		log         Logger
+		log         *slog.Logger
 		wantReaders int
 		wantErr     bool
 		errContains string
@@ -707,7 +708,7 @@ func TestExtractContainerStorageSignatures(t *testing.T) {
 				},
 			},
 			imageID:     testImageID,
-			log:         SilentLogger{},
+			log:         discardLogger(),
 			wantReaders: 1,
 		},
 		{
@@ -721,7 +722,7 @@ func TestExtractContainerStorageSignatures(t *testing.T) {
 				},
 			},
 			imageID:     testImageID,
-			log:         SilentLogger{},
+			log:         discardLogger(),
 			wantReaders: 0,
 		},
 		{
@@ -730,7 +731,7 @@ func TestExtractContainerStorageSignatures(t *testing.T) {
 				imageErr: fmt.Errorf("image lookup failed"),
 			},
 			imageID:     testImageID,
-			log:         SilentLogger{},
+			log:         discardLogger(),
 			wantErr:     true,
 			errContains: "failed to get image",
 		},
@@ -746,7 +747,7 @@ func TestExtractContainerStorageSignatures(t *testing.T) {
 				bigDataErr: fmt.Errorf("read error"),
 			},
 			imageID:     testImageID,
-			log:         SilentLogger{},
+			log:         discardLogger(),
 			wantErr:     true,
 			errContains: "failed to read signature data",
 		},
@@ -764,11 +765,11 @@ func TestExtractContainerStorageSignatures(t *testing.T) {
 				},
 			},
 			imageID:     testImageID,
-			log:         SilentLogger{},
+			log:         discardLogger(),
 			wantReaders: 0,
 		},
 		{
-			name: "nil logger does not panic",
+			name: "no signatures with discard logger",
 			store: &mockContainerStore{
 				imagesByID: map[string]*storage.Image{
 					testImageID: {ID: testImageID, Metadata: `{}`},
@@ -778,7 +779,7 @@ func TestExtractContainerStorageSignatures(t *testing.T) {
 				},
 			},
 			imageID:     testImageID,
-			log:         nil,
+			log:         discardLogger(),
 			wantReaders: 0,
 		},
 	}
@@ -818,7 +819,7 @@ func TestExtractContainerStorageSignaturesContent(t *testing.T) {
 		},
 	}
 
-	readers, err := ExtractContainerStorageSignatures(ms, testImageID, SilentLogger{})
+	readers, err := ExtractContainerStorageSignatures(ms, testImageID, discardLogger())
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
