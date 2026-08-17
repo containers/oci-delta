@@ -10,11 +10,11 @@ oci-delta - create and apply delta files between OCI image archives
 
 **oci-delta** *subcommand* [*OPTIONS*] [*ARGUMENTS*]
 
-**oci-delta create** [**-v**|**--verbose**] [**--debug**] [**-j**|**--jobs** *N*] [**--signature** *FILE*] *old-image new-image output*
+**oci-delta create** [**-s**|**--statistics**] [**--log-level** *LEVEL*] [**--debug**] [**-q**|**--quiet**] [**-j**|**--jobs** *N*] [**--signature** *FILE*] *old-image new-image output*
 
-**oci-delta apply** [**--ostree-repo** *PATH*] [**--directory** *PATH*] [**--container-storage** *PATH*] [**--verify-key** *FILE*] [**--debug**] *delta-file output*
+**oci-delta apply** [**--ostree-repo** *PATH*] [**--directory** *PATH*] [**--container-storage** *PATH*] [**--verify-key** *FILE*] [**--log-level** *LEVEL*] [**--debug**] [**-q**|**--quiet**] *delta-file output*
 
-**oci-delta import** [**--container-storage** *PATH*] [**-t**|**--tag** *NAME*] [**--verify-key** *FILE*] [**--debug**] *delta-file*
+**oci-delta import** [**--container-storage** *PATH*] [**-t**|**--tag** *NAME*] [**--verify-key** *FILE*] [**--log-level** *LEVEL*] [**--debug**] [**-q**|**--quiet**] *delta-file*
 
 # DESCRIPTION
 
@@ -47,11 +47,17 @@ Create a delta between two OCI images.
 
 **Options:**
 
-**-v**, **--verbose**
+**-s**, **--statistics**
 :   Show statistics after delta creation, including layer counts and bytes saved.
 
+**--log-level**=*LEVEL*
+:   Log verbosity level: **error**, **warn**, **info**, or **debug** (default: info).
+
 **--debug**
-:   Show detailed progress information during delta creation.
+:   Show detailed progress information during delta creation (shorthand for --log-level=debug).
+
+**-q**, **--quiet**
+:   Suppress all output except errors (shorthand for --log-level=error).
 
 **-j**, **--jobs**=*N*
 :   Maximum number of parallel tar-diff workers (default: number of CPUs).
@@ -89,8 +95,14 @@ Apply a delta to reconstruct a full OCI image archive.
 **--verify-key**=*FILE*
 :   Path to cosign public key in PEM format for signature verification. If specified, the delta's embedded signature will be verified before applying.
 
+**--log-level**=*LEVEL*
+:   Log verbosity level: **error**, **warn**, **info**, or **debug** (default: info).
+
 **--debug**
-:   Show detailed progress information during delta application.
+:   Show detailed progress information during delta application (shorthand for --log-level=debug).
+
+**-q**, **--quiet**
+:   Suppress all output except errors (shorthand for --log-level=error).
 
 Note: --ostree-repo, --directory, and --container-storage are mutually exclusive. Only one source type can be specified.
 
@@ -118,8 +130,14 @@ Apply a delta and import the result directly into container storage.
 **--verify-key**=*FILE*
 :   Path to cosign public key in PEM format for signature verification.
 
+**--log-level**=*LEVEL*
+:   Log verbosity level: **error**, **warn**, **info**, or **debug** (default: info).
+
 **--debug**
-:   Show detailed progress information during import.
+:   Show detailed progress information during import (shorthand for --log-level=debug).
+
+**-q**, **--quiet**
+:   Suppress all output except errors (shorthand for --log-level=error).
 
 After a successful import, the image ID is printed to stdout and can be used with podman or other container tools.
 
@@ -142,7 +160,7 @@ $ oci-delta create old.oci-archive new.oci-archive update.oci-delta
 **Create a delta with statistics:**
 
 ```
-$ oci-delta create --verbose old.oci new.oci delta.oci
+$ oci-delta create --statistics old.oci new.oci delta.oci
 
 Delta creation statistics:
   Old image layers: 15
