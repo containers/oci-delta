@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"log/slog"
 
 	digest "github.com/opencontainers/go-digest"
 	v1 "github.com/opencontainers/image-spec/specs-go/v1"
@@ -36,12 +37,12 @@ type DeltaArtifact struct {
 	signatures          []EmbeddedSignature
 }
 
-func ParseDeltaArtifact(reader OCIReader, log Logger) (*DeltaArtifact, error) {
+func ParseDeltaArtifact(reader OCIReader, log *slog.Logger) (*DeltaArtifact, error) {
 	deltaManifestDigest, err := reader.GetManifestDigest()
 	if err != nil {
 		return nil, fmt.Errorf("failed to read delta manifest digest: %w", err)
 	}
-	log.Debug("  Delta manifest: %s", deltaManifestDigest.Encoded()[:16])
+	log.Debug("  Delta manifest", "digest", deltaManifestDigest.Encoded()[:16])
 
 	deltaManifestData, err := readBlob(reader, deltaManifestDigest)
 	if err != nil {
@@ -82,7 +83,7 @@ func ParseDeltaArtifact(reader OCIReader, log Logger) (*DeltaArtifact, error) {
 
 			toDigest, err := digest.Parse(toStr)
 			if err != nil {
-				log.Warning("invalid delta.to annotation %q: %v", toStr, err)
+				log.Warn("invalid delta.to annotation", "value", toStr, "error", err)
 				continue
 			}
 			deltaLayerByTo[toDigest] = *layer
@@ -108,7 +109,7 @@ func ParseDeltaArtifact(reader OCIReader, log Logger) (*DeltaArtifact, error) {
 	if err := json.Unmarshal(imageManifestData, &imageManifest); err != nil {
 		return nil, fmt.Errorf("failed to parse embedded image manifest: %w", err)
 	}
-	log.Debug("  Image manifest: %s (%d layers)", imageManifestDesc.Digest.Encoded()[:16], len(imageManifest.Layers))
+	log.Debug("  Image manifest", "digest", imageManifestDesc.Digest.Encoded()[:16], "layers", len(imageManifest.Layers))
 
 	imageConfigData, err := readBlob(reader, imageConfigDesc.Digest)
 	if err != nil {
@@ -119,24 +120,24 @@ func ParseDeltaArtifact(reader OCIReader, log Logger) (*DeltaArtifact, error) {
 	if err := json.Unmarshal(imageConfigData, &imageConfig); err != nil {
 		return nil, fmt.Errorf("failed to parse embedded image config: %w", err)
 	}
-	log.Debug("  Image config: %s (%d diff_ids)", imageConfigDesc.Digest.Encoded()[:16], len(imageConfig.RootFS.DiffIDs))
+	log.Debug("  Image config", "digest", imageConfigDesc.Digest.Encoded()[:16], "diff_ids", len(imageConfig.RootFS.DiffIDs))
 
 	var signatures []EmbeddedSignature
 
 	for _, desc := range sigManifestDescs {
 		sigData, err := readBlob(reader, desc.Digest)
 		if err != nil {
-			log.Warning("failed to read signature manifest %s: %v", desc.Digest.Encoded()[:16], err)
+			log.Warn("failed to read signature manifest", "digest", desc.Digest.Encoded()[:16], "error", err)
 			continue
 		}
 
 		var sigManifest v1.Manifest
 		if err := json.Unmarshal(sigData, &sigManifest); err != nil {
-			log.Warning("failed to parse signature manifest %s: %v", desc.Digest.Encoded()[:16], err)
+			log.Warn("failed to parse signature manifest", "digest", desc.Digest.Encoded()[:16], "error", err)
 			continue
 		}
 		signatures = append(signatures, EmbeddedSignature{Manifest: sigManifest})
-		log.Debug("  Signature manifest: %s (%d layers)", desc.Digest.Encoded()[:16], len(sigManifest.Layers))
+		log.Debug("  Signature manifest", "digest", desc.Digest.Encoded()[:16], "layers", len(sigManifest.Layers))
 	}
 
 	return &DeltaArtifact{

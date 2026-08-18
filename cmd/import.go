@@ -14,7 +14,6 @@ var (
 	importContainerStorage string
 	importTag              string
 	importVerifyKey        string
-	importDebug            bool
 )
 
 var importCmd = &cobra.Command{
@@ -34,7 +33,7 @@ func init() {
 	importCmd.Flags().StringVar(&importContainerStorage, "container-storage", "", "podman container storage root (default: system default)")
 	importCmd.Flags().StringVarP(&importTag, "tag", "t", "", "tag name for the imported image")
 	importCmd.Flags().StringVar(&importVerifyKey, "verify-key", "", "path to cosign public key PEM file for signature verification")
-	importCmd.Flags().BoolVar(&importDebug, "debug", false, "show detailed progress information")
+	addLogFlags(importCmd)
 }
 
 func runImport(cmd *cobra.Command, args []string) error {
@@ -50,9 +49,9 @@ func runImport(cmd *cobra.Command, args []string) error {
 	}
 	defer os.RemoveAll(tmpDir)
 
-	log := &cmdLogger{debug: importDebug}
+	log := newLogger()
 
-	log.Debug("Opening delta: %s", args[0])
+	log.Debug("Opening delta", "delta", args[0])
 
 	deltaReader, err := ocidelta.OpenOCIReader(args[0], tmpDir, log)
 	if err != nil {
@@ -69,7 +68,7 @@ func runImport(cmd *cobra.Command, args []string) error {
 	defer delta.Close()
 
 	if importVerifyKey != "" {
-		log.Debug("Verifying signature with key: %s", importVerifyKey)
+		log.Debug("Verifying signature", "key", importVerifyKey)
 
 		verifier, err := sigstoreSignature.LoadVerifierFromPEMFile(importVerifyKey, crypto.SHA256)
 		if err != nil {

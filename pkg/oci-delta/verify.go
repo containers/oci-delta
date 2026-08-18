@@ -5,6 +5,7 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
+	"log/slog"
 
 	digest "github.com/opencontainers/go-digest"
 	v1 "github.com/opencontainers/image-spec/specs-go/v1"
@@ -16,7 +17,7 @@ const (
 	cosignSignatureAnnotationKey = "dev.cosignproject.cosign/signature"
 )
 
-func VerifyDeltaSignature(delta *DeltaArtifact, verifier sigstoreSignature.Verifier, log Logger) error {
+func VerifyDeltaSignature(delta *DeltaArtifact, verifier sigstoreSignature.Verifier, log *slog.Logger) error {
 	sigs := delta.Signatures()
 	if len(sigs) == 0 {
 		return fmt.Errorf("delta contains no embedded signatures")
@@ -32,7 +33,7 @@ func VerifyDeltaSignature(delta *DeltaArtifact, verifier sigstoreSignature.Verif
 			log.Debug("Signature verification passed")
 			return nil
 		}
-		log.Debug("Signature %d verification failed: %v", i, err)
+		log.Debug("signature verification failed", "index", i, "error", err)
 
 		if firstErr == nil {
 			firstErr = err
@@ -42,7 +43,7 @@ func VerifyDeltaSignature(delta *DeltaArtifact, verifier sigstoreSignature.Verif
 	return fmt.Errorf("no embedded signature could be verified: %w", firstErr)
 }
 
-func verifySignatureLayer(delta *DeltaArtifact, verifier sigstoreSignature.Verifier, expectedDigest digest.Digest, layer *v1.Descriptor, log Logger) error {
+func verifySignatureLayer(delta *DeltaArtifact, verifier sigstoreSignature.Verifier, expectedDigest digest.Digest, layer *v1.Descriptor, log *slog.Logger) error {
 	base64Sig, ok := layer.Annotations[cosignSignatureAnnotationKey]
 	if !ok {
 		return fmt.Errorf("no signature annotation")
@@ -81,13 +82,12 @@ func verifySignatureLayer(delta *DeltaArtifact, verifier sigstoreSignature.Verif
 			payloadDigest.Encoded()[:16], expectedDigest.Encoded()[:16])
 	}
 
-	log.Debug("  Verified signature for manifest %s (ref: %s)",
-		expectedDigest.Encoded()[:16], p.Critical.Identity.DockerReference)
+	log.Debug("  Verified signature", "manifest", expectedDigest.Encoded()[:16], "ref", p.Critical.Identity.DockerReference)
 
 	return nil
 }
 
-func verifySignatureManifest(delta *DeltaArtifact, verifier sigstoreSignature.Verifier, expectedDigest digest.Digest, sig *EmbeddedSignature, log Logger) error {
+func verifySignatureManifest(delta *DeltaArtifact, verifier sigstoreSignature.Verifier, expectedDigest digest.Digest, sig *EmbeddedSignature, log *slog.Logger) error {
 	var firstErr error
 
 	for i, layer := range sig.Manifest.Layers {
@@ -95,7 +95,7 @@ func verifySignatureManifest(delta *DeltaArtifact, verifier sigstoreSignature.Ve
 		if err == nil {
 			return nil
 		}
-		log.Debug("  Signature layer %d verification failed: %v", i, err)
+		log.Debug("  Signature layer verification failed", "index", i, "error", err)
 
 		if firstErr == nil {
 			firstErr = err

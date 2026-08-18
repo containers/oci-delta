@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"log/slog"
 	"os"
 
 	"github.com/containers/storage"
@@ -18,7 +19,7 @@ type ImportOptions struct {
 	TmpDir string
 }
 
-func ImportDelta(delta *DeltaArtifact, store storage.Store, dataSource DataSource, opts ImportOptions, log Logger) (string, error) {
+func ImportDelta(delta *DeltaArtifact, store storage.Store, dataSource DataSource, opts ImportOptions, log *slog.Logger) (string, error) {
 	defer func() {
 		_ = dataSource.Close()
 		_ = dataSource.Cleanup()
@@ -28,7 +29,7 @@ func ImportDelta(delta *DeltaArtifact, store storage.Store, dataSource DataSourc
 	parentLayerID := ""
 	storageLayers := make([]*storage.Layer, len(delta.imageManifest.Layers))
 
-	log.Debug("\nProcessing layers...")
+	log.Debug("Processing layers...")
 
 	for i, layer := range delta.imageManifest.Layers {
 		var diffID digest.Digest
@@ -47,7 +48,7 @@ func ImportDelta(delta *DeltaArtifact, store storage.Store, dataSource DataSourc
 			storageLayers[i] = sl
 			parentLayerID = sl.ID
 		case deltaLayer.MediaType == mediaTypeTarDiff:
-			log.Debug("  Layer %d: reconstructing from tar-diff", i)
+			log.Debug("  Layer reconstructing from tar-diff", "index", i)
 
 			r, err := delta.GetBlobReader(deltaLayer.Digest)
 			if err != nil {
@@ -67,9 +68,9 @@ func ImportDelta(delta *DeltaArtifact, store storage.Store, dataSource DataSourc
 			}
 			storageLayers[i] = newLayer
 			parentLayerID = newLayer.ID
-			log.Debug("    Created layer %s", newLayer.ID[:16])
+			log.Debug("    Created layer", "id", newLayer.ID[:16])
 		default:
-			log.Debug("  Layer %d: importing original layer", i)
+			log.Debug("  Importing original layer", "index", i)
 
 			r, err := delta.GetBlobReader(deltaLayer.Digest)
 			if err != nil {
@@ -89,7 +90,7 @@ func ImportDelta(delta *DeltaArtifact, store storage.Store, dataSource DataSourc
 			}
 			storageLayers[i] = newLayer
 			parentLayerID = newLayer.ID
-			log.Debug("    Created layer %s", newLayer.ID[:16])
+			log.Debug("    Created layer", "id", newLayer.ID[:16])
 		}
 	}
 
@@ -122,7 +123,7 @@ func ImportDelta(delta *DeltaArtifact, store storage.Store, dataSource DataSourc
 	if err != nil {
 		return "", fmt.Errorf("failed to create image: %w", err)
 	}
-	log.Debug("\nCreated image %s", image.ID)
+	log.Debug("Created image", "id", image.ID)
 
 	if err := store.SetImageBigData(image.ID, "manifest", manifestData, manifestDigestFunc); err != nil {
 		return "", fmt.Errorf("failed to store manifest: %w", err)
@@ -147,8 +148,8 @@ func ImportDelta(delta *DeltaArtifact, store storage.Store, dataSource DataSourc
 	return image.ID, nil
 }
 
-func reuseStorageLayer(store storage.Store, diffID digest.Digest, parentLayerID string, tmpDir string, log Logger) (*storage.Layer, error) {
-	log.Debug("  Layer reused (diff_id %s)", diffID.Encoded()[:16])
+func reuseStorageLayer(store storage.Store, diffID digest.Digest, parentLayerID string, tmpDir string, log *slog.Logger) (*storage.Layer, error) {
+	log.Debug("  Layer reused", "diff_id", diffID.Encoded()[:16])
 
 	existing, err := store.LayersByUncompressedDigest(diffID)
 	if err != nil {

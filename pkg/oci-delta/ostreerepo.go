@@ -8,6 +8,7 @@ import "C"
 import (
 	"encoding/json"
 	"fmt"
+	"log/slog"
 	"os"
 	"path/filepath"
 	"strings"
@@ -203,8 +204,8 @@ func enumerateDir(dir *C.GFile, prefix string, result map[string]string) error {
 	return nil
 }
 
-func NewOstreeRepoDataSource(repoPath string, ref string, log Logger) (*OstreeRepoDataSource, error) {
-	log.Debug("Building file index from ostree ref %s", ref)
+func NewOstreeRepoDataSource(repoPath string, ref string, log *slog.Logger) (*OstreeRepoDataSource, error) {
+	log.Debug("building file index from ostree ref", "ref", ref)
 
 	repo, err := openOstreeRepo(repoPath)
 	if err != nil {
@@ -217,7 +218,7 @@ func NewOstreeRepoDataSource(repoPath string, ref string, log Logger) (*OstreeRe
 		return nil, err
 	}
 
-	log.Debug("Indexed %d files from ostree ref", len(pathToObj))
+	log.Debug("indexed files from ostree ref", "count", len(pathToObj))
 
 	return &OstreeRepoDataSource{
 		repoPath:  repoPath,
@@ -276,8 +277,8 @@ func (s *OstreeRepoDataSource) Cleanup() error {
 
 var _ DataSource = (*OstreeRepoDataSource)(nil)
 
-func findOstreeRefByConfig(repoPath string, sourceConfigDigest string, log Logger) (string, error) {
-	log.Debug("Looking for ostree ref with config digest %s", sourceConfigDigest)
+func findOstreeRefByConfig(repoPath string, sourceConfigDigest string, log *slog.Logger) (string, error) {
+	log.Debug("looking for ostree ref", "config_digest", sourceConfigDigest)
 
 	repo, err := openOstreeRepo(repoPath)
 	if err != nil {
@@ -293,7 +294,7 @@ func findOstreeRefByConfig(repoPath string, sourceConfigDigest string, log Logge
 		return "", fmt.Errorf("no container image refs found in ostree repo")
 	}
 
-	log.Debug("Found %d container image refs", len(refs))
+	log.Debug("found container image refs", "count", len(refs))
 
 	for _, ref := range refs {
 		manifestStr, err := getCommitMetadataString(repo, ref, "ostree.manifest")
@@ -310,10 +311,10 @@ func findOstreeRefByConfig(repoPath string, sourceConfigDigest string, log Logge
 			continue
 		}
 
-		log.Debug("  Ref %s: config digest %s", ref, manifest.Config.Digest)
+		log.Debug("  Ref config digest", "ref", ref, "config_digest", manifest.Config.Digest)
 
 		if manifest.Config.Digest == sourceConfigDigest {
-			log.Debug("Matched ref: %s", ref)
+			log.Debug("matched ref", "ref", ref)
 			return ref, nil
 		}
 	}
@@ -321,7 +322,7 @@ func findOstreeRefByConfig(repoPath string, sourceConfigDigest string, log Logge
 	return "", fmt.Errorf("no ostree ref found with config digest %s", sourceConfigDigest)
 }
 
-func ResolveOstreeDataSource(repoPath string, sourceConfigDigest string, log Logger) (*OstreeRepoDataSource, error) {
+func ResolveOstreeDataSource(repoPath string, sourceConfigDigest string, log *slog.Logger) (*OstreeRepoDataSource, error) {
 	ref, err := findOstreeRefByConfig(repoPath, sourceConfigDigest, log)
 	if err != nil {
 		return nil, err

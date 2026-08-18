@@ -10,6 +10,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"log/slog"
 	"os"
 	"testing"
 
@@ -19,12 +20,9 @@ import (
 	v1 "github.com/opencontainers/image-spec/specs-go/v1"
 )
 
-type testLogger struct{}
-
-func (l *testLogger) Debug(format string, args ...interface{})   {}
-func (l *testLogger) Info(msg string)                            {}
-func (l *testLogger) Infof(format string, args ...interface{})   {}
-func (l *testLogger) Warning(format string, args ...interface{}) {}
+func discardLogger() *slog.Logger {
+	return slog.New(slog.NewTextHandler(io.Discard, nil))
+}
 
 func createTestKey(t *testing.T) (sigstoreSignature.Verifier, *ecdsa.PrivateKey) {
 	t.Helper()
@@ -90,7 +88,7 @@ func buildTestDelta(t *testing.T, manifestDigest digest.Digest, sigManifest v1.M
 
 func TestVerifyDeltaSignature(t *testing.T) {
 	verifier, privKey := createTestKey(t)
-	log := &testLogger{}
+	log := discardLogger()
 
 	manifestDigest := digest.FromString("test-manifest-content")
 
@@ -131,7 +129,7 @@ func TestVerifyDeltaSignature(t *testing.T) {
 func TestVerifyDeltaSignatureWrongKey(t *testing.T) {
 	_, privKey := createTestKey(t)
 	otherVerifier, _ := createTestKey(t)
-	log := &testLogger{}
+	log := discardLogger()
 
 	manifestDigest := digest.FromString("test-manifest-content")
 
@@ -171,7 +169,7 @@ func TestVerifyDeltaSignatureWrongKey(t *testing.T) {
 
 func TestVerifyDeltaSignatureWrongDigest(t *testing.T) {
 	verifier, privKey := createTestKey(t)
-	log := &testLogger{}
+	log := discardLogger()
 
 	realDigest := digest.FromString("real-manifest")
 	wrongDigest := digest.FromString("wrong-manifest")
@@ -213,7 +211,7 @@ func TestVerifyDeltaSignatureWrongDigest(t *testing.T) {
 
 func TestVerifyDeltaSignatureNoSignatures(t *testing.T) {
 	verifier, _ := createTestKey(t)
-	log := &testLogger{}
+	log := discardLogger()
 
 	delta := &DeltaArtifact{
 		reader:              &memReader{blobs: map[digest.Digest][]byte{}},

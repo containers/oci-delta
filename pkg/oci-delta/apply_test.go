@@ -451,7 +451,7 @@ func TestProcessLayerDiffSuccess(t *testing.T) {
 	dataSource := newMockDataSource()
 
 	writer := newMockOCIWriter()
-	log := SilentLogger{}
+	log := discardLogger()
 
 	// We don't know the expected diffID in advance, so pass empty
 	newDigest, newSize, err := processLayerDiff(dir, log, writer, bytes.NewReader(tarDiff), "", dataSource)
@@ -512,7 +512,7 @@ func TestProcessLayerDiffWithExpectedDiffID(t *testing.T) {
 
 	dataSource := newMockDataSource()
 	writer := newMockOCIWriter()
-	log := SilentLogger{}
+	log := discardLogger()
 
 	// First, run without expectedDiffID to get the actual diffID
 	actualDigest, _, err := processLayerDiff(dir, log, writer, bytes.NewReader(tarDiff), "", dataSource)
@@ -547,7 +547,7 @@ func TestProcessLayerDiffDiffIDMismatch(t *testing.T) {
 
 	dataSource := newMockDataSource()
 	writer := newMockOCIWriter()
-	log := SilentLogger{}
+	log := discardLogger()
 
 	// Use a wrong expectedDiffID
 	wrongDiffID := digest.FromBytes([]byte("wrong content"))
@@ -569,7 +569,7 @@ func TestProcessLayerDiffInvalidTmpDir(t *testing.T) {
 	tarDiff := createTestTarDiff(t, "file.txt", []byte("content"))
 	dataSource := newMockDataSource()
 	writer := newMockOCIWriter()
-	log := SilentLogger{}
+	log := discardLogger()
 
 	_, _, err := processLayerDiff(invalidDir, log, writer, bytes.NewReader(tarDiff), "", dataSource)
 	if err == nil {
@@ -589,7 +589,7 @@ func TestProcessLayerDiffTarPatchError(t *testing.T) {
 
 	dataSource := newMockDataSource()
 	writer := newMockOCIWriter()
-	log := SilentLogger{}
+	log := discardLogger()
 
 	_, _, err := processLayerDiff(dir, log, writer, bytes.NewReader(invalidTarDiff), "", dataSource)
 	if err == nil {
@@ -666,7 +666,7 @@ func TestApplyDeltaSuccess(t *testing.T) {
 	writer := newMockOCIWriter()
 	dataSource := newMockDataSource()
 	opts := ApplyOptions{TmpDir: tmpDir}
-	log := SilentLogger{}
+	log := discardLogger()
 
 	err := ApplyDelta(delta, writer, dataSource, opts, log)
 	if err != nil {
@@ -759,7 +759,7 @@ func TestApplyDeltaWithReusedLayer(t *testing.T) {
 	writer := newMockOCIWriter()
 	dataSource := newMockDataSource()
 	opts := ApplyOptions{TmpDir: tmpDir}
-	log := SilentLogger{}
+	log := discardLogger()
 
 	err := ApplyDelta(delta, writer, dataSource, opts, log)
 	if err != nil {
@@ -824,7 +824,7 @@ func TestApplyDeltaReadBlobError(t *testing.T) {
 	writer := newMockOCIWriter()
 	dataSource := newMockDataSource()
 	opts := ApplyOptions{TmpDir: tmpDir}
-	log := SilentLogger{}
+	log := discardLogger()
 
 	err := ApplyDelta(delta, writer, dataSource, opts, log)
 	if err == nil {
@@ -890,7 +890,7 @@ func TestApplyDeltaWithOriginalLayer(t *testing.T) {
 	writer := newMockOCIWriter()
 	dataSource := newMockDataSource()
 	opts := ApplyOptions{TmpDir: tmpDir}
-	log := SilentLogger{}
+	log := discardLogger()
 
 	err := ApplyDelta(delta, writer, dataSource, opts, log)
 	if err != nil {

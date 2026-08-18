@@ -136,7 +136,7 @@ func TestCreateDeltaTracksReusedAndProcessedLayers(t *testing.T) {
 	stats, err := CreateDelta(oldImage.reader, newImage.reader, writer, CreateOptions{
 		TmpDir:      t.TempDir(),
 		Parallelism: 1,
-	}, SilentLogger{})
+	}, discardLogger())
 	if err != nil {
 		t.Fatalf("CreateDelta() error = %v", err)
 	}
@@ -235,7 +235,7 @@ func TestCreateDeltaEmbedsSignatureArtifacts(t *testing.T) {
 		TmpDir:      t.TempDir(),
 		Parallelism: 1,
 		Signatures:  []OCIReader{newSignatureOCIReader(t, sigArtifact)},
-	}, SilentLogger{})
+	}, discardLogger())
 	if err != nil {
 		t.Fatalf("CreateDelta() error = %v", err)
 	}
@@ -342,7 +342,7 @@ func TestCreateDeltaWriteFailure(t *testing.T) {
 				_, err := CreateDelta(oldImg.reader, newImg.reader, tc.writer, CreateOptions{
 					TmpDir:      t.TempDir(),
 					Parallelism: 1,
-				}, SilentLogger{})
+				}, discardLogger())
 				if !errors.Is(err, sentinel) {
 					t.Fatalf("CreateDelta() error = %v, want sentinel write error", err)
 				}
@@ -388,7 +388,7 @@ func runCreateDelta(t *testing.T, old OCIReader, new OCIReader, signatures ...OC
 		TmpDir:      t.TempDir(),
 		Parallelism: 1,
 		Signatures:  signatures,
-	}, SilentLogger{})
+	}, discardLogger())
 }
 
 func requireErrorContains(t *testing.T, err error, want string) {

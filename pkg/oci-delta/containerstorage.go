@@ -3,6 +3,7 @@ package ocidelta
 import (
 	"encoding/json"
 	"fmt"
+	"log/slog"
 	"strings"
 
 	"github.com/containers/storage"
@@ -42,13 +43,13 @@ func OpenContainerStorage(graphRoot string) (storage.Store, error) {
 	return store, nil
 }
 
-func findImageByConfigDigest(store storage.Store, configDigest string, log Logger) (string, error) {
+func findImageByConfigDigest(store storage.Store, configDigest string, log *slog.Logger) (string, error) {
 	images, err := store.Images()
 	if err != nil {
 		return "", fmt.Errorf("failed to list images: %w", err)
 	}
 
-	log.Debug("Found %d images in container storage", len(images))
+	log.Debug("Found images in container storage", "count", len(images))
 
 	for _, img := range images {
 		manifestData, err := store.ImageBigData(img.ID, "manifest")
@@ -65,10 +66,10 @@ func findImageByConfigDigest(store storage.Store, configDigest string, log Logge
 			continue
 		}
 
-		log.Debug("  Image %s: config digest %s", img.ID[:16], manifest.Config.Digest)
+		log.Debug("  Image config digest", "image", img.ID[:16], "config_digest", manifest.Config.Digest)
 
 		if manifest.Config.Digest == configDigest {
-			log.Debug("Matched image: %s", img.ID[:16])
+			log.Debug("matched image", "id", img.ID[:16])
 			return img.ID, nil
 		}
 	}
@@ -76,7 +77,7 @@ func findImageByConfigDigest(store storage.Store, configDigest string, log Logge
 	return "", fmt.Errorf("no image found with config digest %s", configDigest)
 }
 
-func ResolveContainerStorageDataSource(store storage.Store, sourceConfigDigest string, log Logger) (DataSource, error) {
+func ResolveContainerStorageDataSource(store storage.Store, sourceConfigDigest string, log *slog.Logger) (DataSource, error) {
 	imageID, err := findImageByConfigDigest(store, sourceConfigDigest, log)
 	if err != nil {
 		return nil, err
@@ -87,7 +88,7 @@ func ResolveContainerStorageDataSource(store storage.Store, sourceConfigDigest s
 		return nil, fmt.Errorf("failed to mount image %s: %w", imageID[:16], err)
 	}
 
-	log.Debug("Mounted image at %s", mountPoint)
+	log.Debug("mounted image", "path", mountPoint)
 
 	return &containerStorageDataSource{
 		DataSource: tarpatch.NewFilesystemDataSource(mountPoint),
@@ -219,17 +220,14 @@ func buildSignatureArtifact(sigs []sigstoreJSONRepresentation) (*signatureArtifa
 	}, nil
 }
 
-func ExtractContainerStorageSignatures(store storage.Store, imageID string, log Logger) ([]OCIReader, error) {
+func ExtractContainerStorageSignatures(store storage.Store, imageID string, log *slog.Logger) ([]OCIReader, error) {
 	sizes, key, err := getSignatureSizes(store, imageID)
 	if err != nil {
 		return nil, err
 	}
 
 	if len(sizes) == 0 {
-		if log != nil {
-			log.Debug("No signatures found in container storage for image %s", imageID[:16])
-		}
-
+		log.Debug("No signatures found in container storage", "image", imageID[:16])
 		return nil, nil
 	}
 
@@ -240,16 +238,11 @@ func ExtractContainerStorageSignatures(store storage.Store, imageID string, log 
 
 	sigstoreSigs := parseSigstoreBlobs(blob, sizes)
 	if len(sigstoreSigs) == 0 {
-		if log != nil {
-			log.Debug("No sigstore signatures found in container storage for image %s", imageID[:16])
-		}
-
+		log.Debug("No sigstore signatures found in container storage", "image", imageID[:16])
 		return nil, nil
 	}
 
-	if log != nil {
-		log.Debug("Found %d sigstore signature(s) in container storage for image %s", len(sigstoreSigs), imageID[:16])
-	}
+	log.Debug("Found sigstore signatures in container storage", "count", len(sigstoreSigs), "image", imageID[:16])
 
 	artifact, err := buildSignatureArtifact(sigstoreSigs)
 	if err != nil {

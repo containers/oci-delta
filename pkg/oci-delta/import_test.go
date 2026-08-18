@@ -543,7 +543,7 @@ func TestImportDelta(t *testing.T) {
 			imageID, err := ImportDelta(delta, store, dataSource, ImportOptions{
 				Tag:    tt.tag,
 				TmpDir: t.TempDir(),
-			}, SilentLogger{})
+			}, discardLogger())
 
 			if tt.expectError {
 				if err == nil {
@@ -778,7 +778,7 @@ func TestReuseStorageLayer(t *testing.T) {
 			if tt.tmpDir != "" {
 				useTmpDir = tt.tmpDir
 			}
-			reusedLayer, err := reuseStorageLayer(tt.store, tt.diffID, tt.parentID, useTmpDir, SilentLogger{})
+			reusedLayer, err := reuseStorageLayer(tt.store, tt.diffID, tt.parentID, useTmpDir, discardLogger())
 
 			if tt.expectError {
 				if err == nil {

@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"log/slog"
 	"os"
 	"time"
 
@@ -19,10 +20,10 @@ type ApplyOptions struct {
 	TmpDir string
 }
 
-func ApplyDelta(delta *DeltaArtifact, writer OCIWriter, dataSource DataSource, opts ApplyOptions, log Logger) error {
+func ApplyDelta(delta *DeltaArtifact, writer OCIWriter, dataSource DataSource, opts ApplyOptions, log *slog.Logger) error {
 	layerDiffIDs := delta.imageConfig.RootFS.DiffIDs
 
-	log.Debug("\nWriting oci-layout")
+	log.Debug("Writing oci-layout")
 
 	if err := writer.WriteFile("oci-layout", ociLayoutFileData); err != nil {
 		return err
@@ -38,13 +39,13 @@ func ApplyDelta(delta *DeltaArtifact, writer OCIWriter, dataSource DataSource, o
 	outputLayers := make([]v1.Descriptor, len(delta.imageManifest.Layers))
 	copy(outputLayers, delta.imageManifest.Layers)
 
-	log.Debug("\nProcessing layers...")
+	log.Debug("Processing layers...")
 
 	for i, layer := range delta.imageManifest.Layers {
 		deltaLayer, inDelta := delta.deltaLayerByTo[layer.Digest]
 		if !inDelta {
 			// Reused layer: keep original descriptor, no blob written.
-			log.Debug("  Layer %s: skipped (not in delta)", layer.Digest.Encoded()[:16])
+			log.Debug("  Layer skipped", "digest", layer.Digest.Encoded()[:16], "reason", "not in delta")
 			continue
 		}
 
@@ -54,7 +55,7 @@ func ApplyDelta(delta *DeltaArtifact, writer OCIWriter, dataSource DataSource, o
 		}
 
 		if deltaLayer.MediaType == mediaTypeTarDiff {
-			log.Debug("  Layer %s: reconstructing from tar-diff", layer.Digest.Encoded()[:16])
+			log.Debug("  Layer reconstructing from tar-diff", "digest", layer.Digest.Encoded()[:16])
 
 			r, err := delta.GetBlobReader(deltaLayer.Digest)
 			if err != nil {
@@ -73,7 +74,7 @@ func ApplyDelta(delta *DeltaArtifact, writer OCIWriter, dataSource DataSource, o
 			outputLayers[i].Digest = newDigest
 			outputLayers[i].Size = newSize
 		} else {
-			log.Debug("  Layer %s: copying original (%d bytes)", layer.Digest.Encoded()[:16], deltaLayer.Size)
+			log.Debug("  Layer copying original", "digest", layer.Digest.Encoded()[:16], "bytes", deltaLayer.Size)
 
 			if err := copyBlob(writer, delta.reader, deltaLayer.Digest); err != nil {
 				return fmt.Errorf("failed to copy layer %s: %w", layer.Digest.Encoded()[:16], err)
@@ -84,7 +85,7 @@ func ApplyDelta(delta *DeltaArtifact, writer OCIWriter, dataSource DataSource, o
 	}
 
 	// Build and write the output image manifest.
-	log.Debug("\nWriting output image manifest...")
+	log.Debug("Writing output image manifest...")
 	outputManifest := delta.imageManifest
 	outputManifest.Layers = outputLayers
 
@@ -111,13 +112,13 @@ func ApplyDelta(delta *DeltaArtifact, writer OCIWriter, dataSource DataSource, o
 	if err != nil {
 		return fmt.Errorf("failed to marshal index: %w", err)
 	}
-	log.Debug("\nWriting index.json")
+	log.Debug("Writing index.json")
 
 	if err := writer.WriteFile("index.json", indexData); err != nil {
 		return err
 	}
 
-	log.Debug("\nDelta applied successfully!")
+	log.Debug("Delta applied successfully!")
 
 	return nil
 }
@@ -161,7 +162,7 @@ func writeFileFromPath(w OCIWriter, name string, filePath string) error {
 	return w.WriteFileFromReader(name, info.Size(), f)
 }
 
-func processLayerDiff(tmpDir string, log Logger, writer OCIWriter, tarDiffReader io.Reader, expectedDiffID digest.Digest,
+func processLayerDiff(tmpDir string, log *slog.Logger, writer OCIWriter, tarDiffReader io.Reader, expectedDiffID digest.Digest,
 	dataSource tarpatch.DataSource) (newDigest digest.Digest, newSize int64, err error) {
 
 	tmpFile, err := os.CreateTemp(tmpDir, "oci-delta-layer-*.gz")
@@ -198,16 +199,16 @@ func processLayerDiff(tmpDir string, log Logger, writer OCIWriter, tarDiffReader
 
 	// Get the diff_id from the uncompressed hash
 	actualDiffID := digest.NewDigestFromBytes(digest.SHA256, diffIDHash.Sum(nil))
-	log.Debug("    Computed diff_id: %s", actualDiffID.Encoded()[:16])
+	log.Debug("  Computed diff_id", "diff_id", actualDiffID.Encoded()[:16])
 
 	if expectedDiffID != "" {
-		log.Debug("    Expected diff_id: %s", expectedDiffID.Encoded()[:16])
+		log.Debug("  Expected diff_id", "diff_id", expectedDiffID.Encoded()[:16])
 
 		if actualDiffID != expectedDiffID {
 			return "", 0, fmt.Errorf("diff_id mismatch: expected %s, got %s",
 				expectedDiffID.Encoded()[:16], actualDiffID.Encoded()[:16])
 		}
-		log.Debug("    Validated diff_id: %s", actualDiffID.Encoded()[:16])
+		log.Debug("  Validated diff_id", "diff_id", actualDiffID.Encoded()[:16])
 	}
 
 	// Get the compressed digest and size
@@ -218,7 +219,7 @@ func processLayerDiff(tmpDir string, log Logger, writer OCIWriter, tarDiffReader
 		return "", 0, err
 	}
 	newSize = info.Size()
-	log.Debug("    Compressed to %d bytes, new digest: %s", newSize, newDigest.Encoded()[:16])
+	log.Debug("  Layer compressed", "bytes", newSize, "digest", newDigest.Encoded()[:16])
 
 	if _, err := tmpFile.Seek(0, 0); err != nil {
 		return "", 0, err
