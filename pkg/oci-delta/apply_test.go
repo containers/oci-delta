@@ -698,6 +698,122 @@ func TestApplyDeltaSuccess(t *testing.T) {
 	}
 }
 
+func TestApplyDeltaUncompressedTarLayerGetsGzipMediaType(t *testing.T) {
+	tmpDir := t.TempDir()
+
+	testFileName := "test.txt"
+	testContent := []byte("uncompressed target layer")
+	tarDiffData := createTestTarDiff(t, testFileName, testContent)
+	tarDiffDigest := digest.FromBytes(tarDiffData)
+
+	imageConfig := v1.Image{
+		RootFS: v1.RootFS{
+			Type:    "layers",
+			DiffIDs: []digest.Digest{},
+		},
+	}
+	imageConfigData, _ := json.Marshal(imageConfig)
+	imageConfigDigest := digest.FromBytes(imageConfigData)
+
+	originalLayerDigest := digest.FromBytes([]byte("original-uncompressed-tar"))
+	imageManifest := v1.Manifest{
+		Config: v1.Descriptor{
+			MediaType: v1.MediaTypeImageConfig,
+			Digest:    imageConfigDigest,
+			Size:      int64(len(imageConfigData)),
+		},
+		Layers: []v1.Descriptor{
+			{
+				MediaType: v1.MediaTypeImageLayer,
+				Digest:    originalLayerDigest,
+				Size:      200,
+			},
+		},
+	}
+
+	reader := newMockOCIReader()
+	reader.addBlob(imageConfigDigest, imageConfigData)
+	reader.addBlob(tarDiffDigest, tarDiffData)
+
+	delta := &DeltaArtifact{
+		reader:            reader,
+		imageManifest:     imageManifest,
+		imageConfig:       imageConfig,
+		imageConfigDigest: imageConfigDigest,
+		deltaLayerByTo: map[digest.Digest]v1.Descriptor{
+			originalLayerDigest: {
+				MediaType: mediaTypeTarDiff,
+				Digest:    tarDiffDigest,
+				Size:      int64(len(tarDiffData)),
+			},
+		},
+	}
+
+	writer := newMockOCIWriter()
+
+	err := ApplyDelta(delta, writer, newMockDataSource(), ApplyOptions{TmpDir: tmpDir}, discardLogger())
+	if err != nil {
+		t.Fatalf("ApplyDelta failed: %v", err)
+	}
+
+	indexData, ok := writer.files["index.json"]
+	if !ok {
+		t.Fatal("index.json was not written")
+	}
+
+	var index v1.Index
+
+	if err := json.Unmarshal(indexData, &index); err != nil {
+		t.Fatalf("failed to parse index.json: %v", err)
+	}
+
+	if len(index.Manifests) != 1 {
+		t.Fatalf("index.json manifests = %d, want 1", len(index.Manifests))
+	}
+
+	manifestData, ok := writer.files[blobTarName(index.Manifests[0].Digest)]
+	if !ok {
+		t.Fatal("output image manifest was not written")
+	}
+
+	var outputManifest v1.Manifest
+
+	if err := json.Unmarshal(manifestData, &outputManifest); err != nil {
+		t.Fatalf("failed to parse output manifest: %v", err)
+	}
+
+	if len(outputManifest.Layers) != 1 {
+		t.Fatalf("output layers = %d, want 1", len(outputManifest.Layers))
+	}
+
+	layer := outputManifest.Layers[0]
+
+	if layer.MediaType != v1.MediaTypeImageLayerGzip {
+		t.Errorf("reconstructed layer mediaType = %q, want %q", layer.MediaType, v1.MediaTypeImageLayerGzip)
+	}
+
+	if layer.Digest == originalLayerDigest {
+		t.Error("reconstructed layer digest still matches original uncompressed tar digest")
+	}
+
+	blob, ok := writer.files[blobTarName(layer.Digest)]
+	if !ok {
+		t.Fatal("reconstructed layer blob was not written")
+	}
+
+	if layer.Size != int64(len(blob)) {
+		t.Errorf("reconstructed layer size = %d, want %d", layer.Size, len(blob))
+	}
+
+	if digest.FromBytes(blob) != layer.Digest {
+		t.Errorf("reconstructed layer digest = %s, want gzip blob digest %s", layer.Digest, digest.FromBytes(blob))
+	}
+
+	if len(blob) < 2 || blob[0] != 0x1f || blob[1] != 0x8b {
+		t.Errorf("reconstructed layer blob does not start with gzip magic 1f 8b")
+	}
+}
+
 func TestApplyDeltaWithReusedLayer(t *testing.T) {
 	tmpDir := t.TempDir()
 
