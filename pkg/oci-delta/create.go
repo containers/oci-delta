@@ -353,18 +353,23 @@ func computeLayerDiffsParallel(log *slog.Logger, old *OCIImage, new *OCIImage, n
 	diffOpts.SetApplyWhiteouts(true)
 	diffOpts.SetTmpDir(opts.TmpDir)
 	diffOpts.SetBinaryDiffMethod(opts.BinaryDiffMethod)
+
 	if opts.CompressionLevel > 0 {
 		diffOpts.SetCompressionLevel(opts.CompressionLevel)
 	}
+
 	if opts.ZstdDiffLevel != nil {
 		diffOpts.SetZstdDiffLevel(*opts.ZstdDiffLevel)
 	}
+
 	if opts.ZstdDiffWindowMiB != nil {
 		diffOpts.SetZstdDiffWindow(*opts.ZstdDiffWindowMiB * 1024 * 1024)
 	}
+
 	if opts.MaxZstdDiffSizeMiB != nil {
 		diffOpts.SetMaxZstdDiffFileSize(int64(*opts.MaxZstdDiffSizeMiB) * 1024 * 1024)
 	}
+
 	if opts.MaxBsdiffSizeMiB != nil {
 		diffOpts.SetMaxBsdiffFileSize(int64(*opts.MaxBsdiffSizeMiB) * 1024 * 1024)
 	}

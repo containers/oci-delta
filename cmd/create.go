@@ -112,12 +112,15 @@ func runCreate(cmd *cobra.Command, args []string) error {
 	if err != nil {
 		return err
 	}
+
 	if createZstdDiffWindowMiB < 0 {
 		return fmt.Errorf("invalid --zstd-diff-window %d", createZstdDiffWindowMiB)
 	}
+
 	if createMaxZstdDiffSize < 0 {
 		return fmt.Errorf("invalid --max-zstd-diff-size %d", createMaxZstdDiffSize)
 	}
+
 	if createMaxBsdiffSize < 0 {
 		return fmt.Errorf("invalid --max-bsdiff-size %d", createMaxBsdiffSize)
 	}
@@ -126,6 +129,7 @@ func runCreate(cmd *cobra.Command, args []string) error {
 	zstdDiffWindow := createZstdDiffWindowMiB
 	maxZstdDiffSize := createMaxZstdDiffSize
 	maxBsdiffSize := createMaxBsdiffSize
+
 	stats, err := ocidelta.CreateDelta(oldReader, newReader, writer, ocidelta.CreateOptions{
 		TmpDir:             tmpDir,
 		Parallelism:        createParallelism,
