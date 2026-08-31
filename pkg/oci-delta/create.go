@@ -26,14 +26,15 @@ type CreateStats struct {
 }
 
 type CreateOptions struct {
-	TmpDir              string
-	Parallelism         int                      // max concurrent tar-diff workers; 0 means GOMAXPROCS
-	Signatures          []OCIReader              // signature OCI artifacts to embed in the delta
-	BinaryDiffMethod    tardiff.BinaryDiffMethod // bsdiff (default) or zstd dictionary patches
-	CompressionLevel    int                      // outer tar-diff zstd level; 0 means tar-diff default
-	ZstdDiffLevel       *int                     // per-file zstd patch level; nil keeps tar-diff default (<0 => compression level)
-	ZstdDiffWindowMiB   *int                     // zstd window MiB; nil/0 means auto from source size
-	ZstdDiffFallbackRaw *bool                    // nil means tar-diff default (true)
+	TmpDir             string
+	Parallelism        int                      // max concurrent tar-diff workers; 0 means GOMAXPROCS
+	Signatures         []OCIReader              // signature OCI artifacts to embed in the delta
+	BinaryDiffMethod   tardiff.BinaryDiffMethod // bsdiff (default), zstd, or auto
+	CompressionLevel   int                      // outer tar-diff zstd level; 0 means tar-diff default
+	ZstdDiffLevel      *int                     // per-file zstd patch level; nil keeps tar-diff default
+	ZstdDiffWindowMiB  *int                     // zstd window MiB; nil/0 means auto from source size
+	MaxZstdDiffSizeMiB *int                     // zstd dict-patch size cap MiB; nil keeps tar-diff default (128); 0 = no extra cap
+	MaxBsdiffSizeMiB   *int                     // bsdiff size cap MiB; nil keeps tar-diff default (192); 0 = no limit
 }
 
 func CreateDelta(oldReader OCIReader, newReader OCIReader, writer OCIWriter, opts CreateOptions, log *slog.Logger) (*CreateStats, error) {
@@ -361,8 +362,11 @@ func computeLayerDiffsParallel(log *slog.Logger, old *OCIImage, new *OCIImage, n
 	if opts.ZstdDiffWindowMiB != nil {
 		diffOpts.SetZstdDiffWindow(*opts.ZstdDiffWindowMiB * 1024 * 1024)
 	}
-	if opts.ZstdDiffFallbackRaw != nil {
-		diffOpts.SetZstdDiffFallbackRaw(*opts.ZstdDiffFallbackRaw)
+	if opts.MaxZstdDiffSizeMiB != nil {
+		diffOpts.SetMaxZstdDiffFileSize(int64(*opts.MaxZstdDiffSizeMiB) * 1024 * 1024)
+	}
+	if opts.MaxBsdiffSizeMiB != nil {
+		diffOpts.SetMaxBsdiffFileSize(int64(*opts.MaxBsdiffSizeMiB) * 1024 * 1024)
 	}
 
 	var oldFiles []io.ReadSeeker

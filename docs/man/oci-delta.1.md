@@ -10,7 +10,7 @@ oci-delta - create and apply delta files between OCI image archives
 
 **oci-delta** *subcommand* [*OPTIONS*] [*ARGUMENTS*]
 
-**oci-delta create** [**-s**|**--statistics**] [**--log-level** *LEVEL*] [**--debug**] [**-q**|**--quiet**] [**-j**|**--jobs** *N*] [**--signature** *FILE*] *old-image new-image output*
+**oci-delta create** [**-s**|**--statistics**] [**--log-level** *LEVEL*] [**--debug**] [**-q**|**--quiet**] [**-j**|**--jobs** *N*] [**--binary-diff** *METHOD*] [**--signature** *FILE*] *old-image new-image output*
 
 **oci-delta apply** [**--ostree-repo** *PATH*] [**--directory** *PATH*] [**--container-storage** *PATH*] [**--verify-key** *FILE*] [**--log-level** *LEVEL*] [**--debug**] [**-q**|**--quiet**] *delta-file output*
 
@@ -61,6 +61,24 @@ Create a delta between two OCI images.
 
 **-j**, **--jobs**=*N*
 :   Maximum number of parallel tar-diff workers (default: number of CPUs).
+
+**--binary-diff**=*METHOD*
+:   Per-file binary diff backend: **bsdiff** (default), **zstd**, or **auto**. **auto** uses zstd under the zstd size cap, then bsdiff under the bsdiff cap.
+
+**--compression-level**=*N*
+:   Outer tar-diff zstd level (0 = tar-diff default).
+
+**--zstd-diff-level**=*N*
+:   zstd level for dictionary patches (-1 = use **--compression-level** / tar-diff default).
+
+**--zstd-diff-window**=*N*
+:   zstd window size in MiB for dictionary patches (0 = auto from source size, max 512).
+
+**--max-zstd-diff-size**=*N*
+:   Max file size in MiB for zstd dictionary patches (default: 128; 0 = no extra cap). Files over this cap skip zstd.
+
+**--max-bsdiff-size**=*N*
+:   Max file size in MiB for bsdiff (default: 192; 0 = no limit).
 
 **--signature**=*FILE*
 :   Signature OCI artifact to embed in the delta. Can be specified multiple times to embed multiple signatures. Enables offline signature verification during apply/import.

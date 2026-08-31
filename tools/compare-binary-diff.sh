@@ -12,7 +12,7 @@ usage() {
 	echo "  JOBS                 passed as -j (default: oci-delta default / GOMAXPROCS)"
 	echo "  ZSTD_DIFF_LEVEL      --zstd-diff-level for the zstd run (default: 9)"
 	echo "  ZSTD_DIFF_WINDOW     --zstd-diff-window MiB, 0=auto (default: 0)"
-	echo "  ZSTD_DIFF_FALLBACK   --zstd-diff-fallback-raw true|false (default: true)"
+	echo "  MAX_ZSTD_DIFF_SIZE   --max-zstd-diff-size MiB (default: 128, 0 = no extra cap)"
 	echo "  COMPRESSION_LEVEL    --compression-level for both runs (optional)"
 	echo "  SKIP_ANALYZE         set to 1 to skip analyze-delta.py"
 	echo ""
@@ -51,7 +51,7 @@ ANALYZE="$SCRIPT_DIR/analyze-delta.py"
 JOBS="${JOBS:-}"
 ZSTD_DIFF_LEVEL="${ZSTD_DIFF_LEVEL:-9}"
 ZSTD_DIFF_WINDOW="${ZSTD_DIFF_WINDOW:-0}"
-ZSTD_DIFF_FALLBACK="${ZSTD_DIFF_FALLBACK:-true}"
+MAX_ZSTD_DIFF_SIZE="${MAX_ZSTD_DIFF_SIZE:-}"
 COMPRESSION_LEVEL="${COMPRESSION_LEVEL:-}"
 SKIP_ANALYZE="${SKIP_ANALYZE:-0}"
 
@@ -71,7 +71,9 @@ run_create() {
 	if [ "$method" = "zstd" ]; then
 		cmd+=(--zstd-diff-level "$ZSTD_DIFF_LEVEL")
 		cmd+=(--zstd-diff-window "$ZSTD_DIFF_WINDOW")
-		cmd+=(--zstd-diff-fallback-raw="$ZSTD_DIFF_FALLBACK")
+		if [ -n "$MAX_ZSTD_DIFF_SIZE" ]; then
+			cmd+=(--max-zstd-diff-size "$MAX_ZSTD_DIFF_SIZE")
+		fi
 	fi
 	cmd+=("$OLD_IMAGE" "$NEW_IMAGE" "$out")
 
@@ -98,7 +100,7 @@ zstd_size="$(stat -c%s "$ZSTD_DELTA")"
 
 echo ""
 echo "==> Summary"
-echo "zstd knobs: level=$ZSTD_DIFF_LEVEL window_mib=$ZSTD_DIFF_WINDOW fallback_raw=$ZSTD_DIFF_FALLBACK jobs=${JOBS:-default}"
+echo "zstd knobs: level=$ZSTD_DIFF_LEVEL window_mib=$ZSTD_DIFF_WINDOW max_zstd_mib=${MAX_ZSTD_DIFF_SIZE:-default} jobs=${JOBS:-default}"
 printf '%-10s  %12s  %10s\n' "method" "time_sec" "size_bytes"
 printf '%-10s  %12s  %10s\n' "bsdiff" "$bsdiff_secs" "$bsdiff_size"
 printf '%-10s  %12s  %10s\n' "zstd" "$zstd_secs" "$zstd_size"
