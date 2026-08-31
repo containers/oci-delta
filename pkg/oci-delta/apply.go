@@ -73,6 +73,7 @@ func ApplyDelta(delta *DeltaArtifact, writer OCIWriter, dataSource DataSource, o
 			}
 			outputLayers[i].Digest = newDigest
 			outputLayers[i].Size = newSize
+			outputLayers[i].MediaType = v1.MediaTypeImageLayerGzip
 		} else {
 			log.Debug("  Layer copying original", "digest", layer.Digest.Encoded()[:16], "bytes", deltaLayer.Size)
 
