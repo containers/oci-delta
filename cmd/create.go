@@ -61,7 +61,33 @@ func bytesToMB(b int64) string {
 	return fmt.Sprintf("%.2f MB", float64(b)/(1000*1000))
 }
 
+func parseCreateDiffFlags() (tardiff.BinaryDiffMethod, error) {
+	method, err := parseBinaryDiffMethod(createBinaryDiff)
+	if err != nil {
+		return 0, err
+	}
+
+	if createZstdDiffWindowMiB < 0 {
+		return 0, fmt.Errorf("invalid --zstd-diff-window %d", createZstdDiffWindowMiB)
+	}
+
+	if createMaxZstdDiffSize < 0 {
+		return 0, fmt.Errorf("invalid --max-zstd-diff-size %d", createMaxZstdDiffSize)
+	}
+
+	if createMaxBsdiffSize < 0 {
+		return 0, fmt.Errorf("invalid --max-bsdiff-size %d", createMaxBsdiffSize)
+	}
+
+	return method, nil
+}
+
 func runCreate(cmd *cobra.Command, args []string) error {
+	binaryDiffMethod, err := parseCreateDiffFlags()
+	if err != nil {
+		return err
+	}
+
 	tmpDir, err := os.MkdirTemp("/var/tmp", "oci-delta-*")
 	if err != nil {
 		return fmt.Errorf("failed to create temp directory: %w", err)
@@ -106,23 +132,6 @@ func runCreate(cmd *cobra.Command, args []string) error {
 	writer, err := ocidelta.OpenOCIWriter(args[2])
 	if err != nil {
 		return fmt.Errorf("failed to create output: %w", err)
-	}
-
-	binaryDiffMethod, err := parseBinaryDiffMethod(createBinaryDiff)
-	if err != nil {
-		return err
-	}
-
-	if createZstdDiffWindowMiB < 0 {
-		return fmt.Errorf("invalid --zstd-diff-window %d", createZstdDiffWindowMiB)
-	}
-
-	if createMaxZstdDiffSize < 0 {
-		return fmt.Errorf("invalid --max-zstd-diff-size %d", createMaxZstdDiffSize)
-	}
-
-	if createMaxBsdiffSize < 0 {
-		return fmt.Errorf("invalid --max-bsdiff-size %d", createMaxBsdiffSize)
 	}
 
 	zstdDiffLevel := createZstdDiffLevel

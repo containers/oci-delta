@@ -13,6 +13,7 @@ import (
 	"testing"
 	"time"
 
+	tardiff "github.com/containers/tar-diff/pkg/tar-diff"
 	digest "github.com/opencontainers/go-digest"
 	specs "github.com/opencontainers/image-spec/specs-go"
 	v1 "github.com/opencontainers/image-spec/specs-go/v1"
@@ -213,6 +214,42 @@ func TestCreateDeltaTracksReusedAndProcessedLayers(t *testing.T) {
 
 	if imageLayerCount != 1 {
 		t.Errorf("image-layer count = %d, want 1", imageLayerCount)
+	}
+}
+
+func TestCreateDeltaAppliesBinaryDiffOptions(t *testing.T) {
+	reusedLayer := newTestLayer(t, "usr/bin/reused", "same-content")
+	newLayer := newTestLayer(t, "usr/bin/new", "new-content")
+
+	oldImage := newTestOCIReader(t, []testLayer{reusedLayer})
+	newImage := newTestOCIReader(t, []testLayer{reusedLayer, newLayer})
+
+	writer, err := newDirOCIWriter(t.TempDir(), "")
+	if err != nil {
+		t.Fatalf("newDirOCIWriter() error = %v", err)
+	}
+
+	zstdLevel := 3
+	windowMiB := 0
+	maxZstd := 128
+	maxBsdiff := 192
+
+	stats, err := CreateDelta(oldImage.reader, newImage.reader, writer, CreateOptions{
+		TmpDir:             t.TempDir(),
+		Parallelism:        1,
+		BinaryDiffMethod:   tardiff.BinaryDiffZstd,
+		CompressionLevel:   3,
+		ZstdDiffLevel:      &zstdLevel,
+		ZstdDiffWindowMiB:  &windowMiB,
+		MaxZstdDiffSizeMiB: &maxZstd,
+		MaxBsdiffSizeMiB:   &maxBsdiff,
+	}, discardLogger())
+	if err != nil {
+		t.Fatalf("CreateDelta() error = %v", err)
+	}
+
+	if stats.ProcessedLayers != 1 {
+		t.Errorf("ProcessedLayers = %d, want 1", stats.ProcessedLayers)
 	}
 }
 
