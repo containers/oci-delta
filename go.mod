@@ -5,7 +5,7 @@ go 1.26
 require (
 	github.com/containers/image/v5 v5.36.2
 	github.com/containers/storage v1.59.1
-	github.com/containers/tar-diff v0.5.1
+	github.com/containers/tar-diff v0.6.0
 	github.com/opencontainers/go-digest v1.0.0
 	github.com/opencontainers/image-spec v1.1.1
 	github.com/sigstore/sigstore v1.10.8

@@ -51,7 +51,7 @@ In other words, it has the ostree object file, as well as a hardlink to it with 
 path. This makes it easy to know which files can be used as sources for the deltas. We can just look
 for a file prefix of `sysroot/ostree/repo/objects`.
 
-To completely support what is required, tar-diff was [extended](https://github.com/containers/tar-diff/pull/66) to:
+To completely support what is required, tar-diff supports:
  * support the hardlinked structure of bootc images
  * support multiple "old" images (we can use all old layers as delta source material)
  * filtering the delta source files by prefix
@@ -133,11 +133,7 @@ CI runs E2E tests on [Testing Farm](https://docs.testing-farm.io/) via [Packit](
 
 ## Requirements
 
-The target system has to run a bootc version 1.15.0 or later, that contains [the fix to use layer
-diff_ids](https://github.com/bootc-dev/bootc/pull/2081).
-
-The required support in tar-diff has been merged in [PR #66](https://github.com/containers/tar-diff/pull/66) and is
-available in the current main branch. This is not yet in a release, but will be in the release after 0.3.1.
+The target system has to run bootc 1.15.0 or later, which matches reconstructed layers by diff_id.
 
 ## Delta file format
 

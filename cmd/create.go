@@ -7,14 +7,21 @@ import (
 	"strings"
 
 	ocidelta "github.com/containers/oci-delta/pkg/oci-delta"
+	tardiff "github.com/containers/tar-diff/pkg/tar-diff"
 	"github.com/spf13/cobra"
 )
 
 var (
-	createStatistics  bool
-	createVerbose     bool // deprecated alias for --statistics, kept hidden for compatibility
-	createParallelism int
-	createSignatures  []string
+	createStatistics        bool
+	createVerbose           bool // deprecated alias for --statistics, kept hidden for compatibility
+	createParallelism       int
+	createSignatures        []string
+	createBinaryDiff        string
+	createCompressionLevel  int
+	createZstdDiffLevel     int
+	createZstdDiffWindowMiB int
+	createMaxZstdDiffSize   int
+	createMaxBsdiffSize     int
 )
 
 var createCmd = &cobra.Command{
@@ -39,6 +46,12 @@ func init() {
 	createCmd.Flags().BoolVarP(&createVerbose, "verbose", "v", false, "show statistics after creation")
 	_ = createCmd.Flags().MarkHidden("verbose")
 	createCmd.Flags().IntVarP(&createParallelism, "jobs", "j", 0, "max parallel tar-diff workers (default: number of CPUs)")
+	createCmd.Flags().StringVar(&createBinaryDiff, "binary-diff", "bsdiff", "per-file binary diff method: bsdiff, zstd, or auto")
+	createCmd.Flags().IntVar(&createCompressionLevel, "compression-level", 0, "outer tar-diff zstd level (0 = tar-diff default)")
+	createCmd.Flags().IntVar(&createZstdDiffLevel, "zstd-diff-level", -1, "zstd level for dictionary patches (-1 = use compression-level/default)")
+	createCmd.Flags().IntVar(&createZstdDiffWindowMiB, "zstd-diff-window", 0, "zstd window size in MiB for dictionary patches (0 = auto, otherwise a power of two, max 512)")
+	createCmd.Flags().IntVar(&createMaxZstdDiffSize, "max-zstd-diff-size", 128, "max file size in MiB for zstd dictionary patches (0 = no extra cap)")
+	createCmd.Flags().IntVar(&createMaxBsdiffSize, "max-bsdiff-size", 192, "max file size in MiB for bsdiff (0 = no limit)")
 	createCmd.Flags().StringArrayVar(&createSignatures, "signature", nil, "signature OCI artifact to embed (can be specified multiple times)")
 	addLogFlags(createCmd)
 }
@@ -48,7 +61,41 @@ func bytesToMB(b int64) string {
 	return fmt.Sprintf("%.2f MB", float64(b)/(1000*1000))
 }
 
+func parseCreateDiffFlags() (tardiff.BinaryDiffMethod, error) {
+	method, err := parseBinaryDiffMethod(createBinaryDiff)
+	if err != nil {
+		return 0, err
+	}
+
+	if createZstdDiffWindowMiB < 0 {
+		return 0, fmt.Errorf("invalid --zstd-diff-window %d", createZstdDiffWindowMiB)
+	}
+
+	if createZstdDiffWindowMiB > 512 {
+		return 0, fmt.Errorf("invalid --zstd-diff-window %d (max 512)", createZstdDiffWindowMiB)
+	}
+
+	if createZstdDiffWindowMiB > 0 && createZstdDiffWindowMiB&(createZstdDiffWindowMiB-1) != 0 {
+		return 0, fmt.Errorf("invalid --zstd-diff-window %d (must be 0 or a power of two)", createZstdDiffWindowMiB)
+	}
+
+	if createMaxZstdDiffSize < 0 {
+		return 0, fmt.Errorf("invalid --max-zstd-diff-size %d", createMaxZstdDiffSize)
+	}
+
+	if createMaxBsdiffSize < 0 {
+		return 0, fmt.Errorf("invalid --max-bsdiff-size %d", createMaxBsdiffSize)
+	}
+
+	return method, nil
+}
+
 func runCreate(cmd *cobra.Command, args []string) error {
+	binaryDiffMethod, err := parseCreateDiffFlags()
+	if err != nil {
+		return err
+	}
+
 	tmpDir, err := os.MkdirTemp("/var/tmp", "oci-delta-*")
 	if err != nil {
 		return fmt.Errorf("failed to create temp directory: %w", err)
@@ -95,10 +142,21 @@ func runCreate(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("failed to create output: %w", err)
 	}
 
+	zstdDiffLevel := createZstdDiffLevel
+	zstdDiffWindow := createZstdDiffWindowMiB
+	maxZstdDiffSize := createMaxZstdDiffSize
+	maxBsdiffSize := createMaxBsdiffSize
+
 	stats, err := ocidelta.CreateDelta(oldReader, newReader, writer, ocidelta.CreateOptions{
-		TmpDir:      tmpDir,
-		Parallelism: createParallelism,
-		Signatures:  sigReaders,
+		TmpDir:             tmpDir,
+		Parallelism:        createParallelism,
+		Signatures:         sigReaders,
+		BinaryDiffMethod:   binaryDiffMethod,
+		CompressionLevel:   createCompressionLevel,
+		ZstdDiffLevel:      &zstdDiffLevel,
+		ZstdDiffWindowMiB:  &zstdDiffWindow,
+		MaxZstdDiffSizeMiB: &maxZstdDiffSize,
+		MaxBsdiffSizeMiB:   &maxBsdiffSize,
 	}, log)
 	if err != nil {
 		writer.Close()
@@ -151,4 +209,17 @@ func runCreate(cmd *cobra.Command, args []string) error {
 	log.Debug("Delta filepath output", "path", outputPath)
 
 	return nil
+}
+
+func parseBinaryDiffMethod(value string) (tardiff.BinaryDiffMethod, error) {
+	switch value {
+	case "bsdiff":
+		return tardiff.BinaryDiffBsdiff, nil
+	case "zstd":
+		return tardiff.BinaryDiffZstd, nil
+	case "auto":
+		return tardiff.BinaryDiffAuto, nil
+	default:
+		return 0, fmt.Errorf("invalid --binary-diff %q (want bsdiff, zstd, or auto)", value)
+	}
 }
