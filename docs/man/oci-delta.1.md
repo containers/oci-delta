@@ -72,7 +72,7 @@ Create a delta between two OCI images.
 :   zstd level for dictionary patches (-1 = use **--compression-level** / tar-diff default).
 
 **--zstd-diff-window**=*N*
-:   zstd window size in MiB for dictionary patches (0 = auto from source size, max 512).
+:   zstd window size in MiB for dictionary patches. **0** (default) sizes the window automatically from the source file. A non-zero value must be a power of two and at most **512**.
 
 **--max-zstd-diff-size**=*N*
 :   Max file size in MiB for zstd dictionary patches (default: 128; 0 = no extra cap). Files over this cap skip zstd.

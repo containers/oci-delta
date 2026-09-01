@@ -63,6 +63,17 @@ func TestParseCreateDiffFlags(t *testing.T) {
 		t.Fatalf("parseCreateDiffFlags() = %v, want auto", got)
 	}
 
+	createZstdDiffWindowMiB = 4
+
+	got, err = parseCreateDiffFlags()
+	if err != nil {
+		t.Fatalf("parseCreateDiffFlags() power-of-two window error = %v", err)
+	}
+
+	if got != tardiff.BinaryDiffAuto {
+		t.Fatalf("parseCreateDiffFlags() = %v, want auto", got)
+	}
+
 	tests := []struct {
 		name    string
 		setup   func()
@@ -82,6 +93,22 @@ func TestParseCreateDiffFlags(t *testing.T) {
 				createZstdDiffWindowMiB = -1
 			},
 			wantErr: "invalid --zstd-diff-window -1",
+		},
+		{
+			name: "zstd window over max",
+			setup: func() {
+				createBinaryDiff = "zstd"
+				createZstdDiffWindowMiB = 513
+			},
+			wantErr: "invalid --zstd-diff-window 513 (max 512)",
+		},
+		{
+			name: "zstd window not power of two",
+			setup: func() {
+				createBinaryDiff = "zstd"
+				createZstdDiffWindowMiB = 3
+			},
+			wantErr: "invalid --zstd-diff-window 3 (must be 0 or a power of two)",
 		},
 		{
 			name: "negative max zstd size",

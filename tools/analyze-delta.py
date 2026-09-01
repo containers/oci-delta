@@ -155,7 +155,8 @@ def iter_ops(blob):
 
 class FileEntry:
     __slots__ = ('name', 'size', 'typeflag', 'copy_bytes', 'adddata_bytes',
-                 'data_bytes', 'sources', 'payload_data', 'compressed_payload')
+                 'data_bytes', 'zstddict_bytes', 'sources', 'payload_data',
+                 'compressed_payload')
 
     def __init__(self, name, size, typeflag='0'):
         self.name = name
@@ -164,6 +165,7 @@ class FileEntry:
         self.copy_bytes = 0
         self.adddata_bytes = 0
         self.data_bytes = 0
+        self.zstddict_bytes = 0
         self.sources = []  # ordered unique source paths used for this file's data
         self.payload_data = bytearray()  # adddata diff bytes + raw data bytes
         self.compressed_payload = 0
@@ -174,11 +176,11 @@ class FileEntry:
 
     @property
     def reuse_type(self):
-        if self.copy_bytes + self.adddata_bytes + self.data_bytes == 0:
+        if self.copy_bytes + self.adddata_bytes + self.data_bytes + self.zstddict_bytes == 0:
             return 'new'
-        if self.adddata_bytes == 0 and self.data_bytes == 0:
+        if self.adddata_bytes == 0 and self.data_bytes == 0 and self.zstddict_bytes == 0:
             return 'reused'
-        if self.copy_bytes == 0 and self.adddata_bytes == 0:
+        if self.copy_bytes == 0 and self.adddata_bytes == 0 and self.zstddict_bytes == 0:
             return 'new'
         return 'delta'
 
@@ -344,6 +346,8 @@ def analyze_layer(blob):
                 if current_file is not None:
                     if op == OP_COPY:
                         current_file.copy_bytes += take
+                    elif op == OP_ZSTDDICT:
+                        current_file.zstddict_bytes += take
                     else:
                         current_file.adddata_bytes += take
                         if adddata is not None:
@@ -375,15 +379,15 @@ def analyze_layer(blob):
         elif op == OP_ADDDATA:
             advance_reused(size, OP_ADDDATA, data)
         elif op == OP_ZSTDDICT:
-            # Attribute reconstructed bytes as reused; frame must carry content size
-            # (tar-diff encodes these with zstd single-segment frames).
             try:
                 params = zstd.get_frame_parameters(data)
             except zstd.ZstdError as e:
                 raise ValueError(f"invalid ZstdDict frame: {e}") from e
             if params.content_size == zstd.CONTENTSIZE_UNKNOWN:
                 raise ValueError("ZstdDict frame missing content size")
-            advance_reused(params.content_size, OP_COPY)
+            if current_file is not None:
+                current_file.compressed_payload += len(data)
+            advance_reused(params.content_size, OP_ZSTDDICT)
         # OP_SEEK: no output bytes
 
     return files, hardlinks
@@ -463,10 +467,8 @@ def report(delta_path, verbose):
                 cctx = zstd.ZstdCompressor(level=3)
                 for f in files:
                     if f.payload_data:
-                        f.compressed_payload = len(cctx.compress(bytes(f.payload_data)))
-                        f.payload_data = bytearray()  # free memory
-                    else:
-                        f.compressed_payload = 0
+                        f.compressed_payload += len(cctx.compress(bytes(f.payload_data)))
+                        f.payload_data = bytearray()
 
                 def display_name(ostree_path):
                     for n in hardlinks.get(ostree_path, []):
@@ -531,10 +533,11 @@ def report(delta_path, verbose):
                     if meta:
                         ma = sum(f.adddata_bytes for f in meta)
                         md = sum(f.data_bytes for f in meta)
+                        mz = sum(f.zstddict_bytes for f in meta)
                         ms = sum(f.size for f in meta)
                         mcp = sum(f.compressed_payload for f in meta)
-                        mrt = 'reused' if not ma and not md else \
-                              'new' if not ma else 'delta'
+                        mrt = 'reused' if not ma and not md and not mz else \
+                              'new' if not ma and not mz else 'delta'
                         label = f"[metadata] ({len(meta)} objects)"
                         meta_sources = []
                         seen_ms = set()

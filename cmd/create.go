@@ -49,7 +49,7 @@ func init() {
 	createCmd.Flags().StringVar(&createBinaryDiff, "binary-diff", "bsdiff", "per-file binary diff method: bsdiff, zstd, or auto")
 	createCmd.Flags().IntVar(&createCompressionLevel, "compression-level", 0, "outer tar-diff zstd level (0 = tar-diff default)")
 	createCmd.Flags().IntVar(&createZstdDiffLevel, "zstd-diff-level", -1, "zstd level for dictionary patches (-1 = use compression-level/default)")
-	createCmd.Flags().IntVar(&createZstdDiffWindowMiB, "zstd-diff-window", 0, "zstd window size in MiB for dictionary patches (0 = auto, max 512)")
+	createCmd.Flags().IntVar(&createZstdDiffWindowMiB, "zstd-diff-window", 0, "zstd window size in MiB for dictionary patches (0 = auto, otherwise a power of two, max 512)")
 	createCmd.Flags().IntVar(&createMaxZstdDiffSize, "max-zstd-diff-size", 128, "max file size in MiB for zstd dictionary patches (0 = no extra cap)")
 	createCmd.Flags().IntVar(&createMaxBsdiffSize, "max-bsdiff-size", 192, "max file size in MiB for bsdiff (0 = no limit)")
 	createCmd.Flags().StringArrayVar(&createSignatures, "signature", nil, "signature OCI artifact to embed (can be specified multiple times)")
@@ -69,6 +69,14 @@ func parseCreateDiffFlags() (tardiff.BinaryDiffMethod, error) {
 
 	if createZstdDiffWindowMiB < 0 {
 		return 0, fmt.Errorf("invalid --zstd-diff-window %d", createZstdDiffWindowMiB)
+	}
+
+	if createZstdDiffWindowMiB > 512 {
+		return 0, fmt.Errorf("invalid --zstd-diff-window %d (max 512)", createZstdDiffWindowMiB)
+	}
+
+	if createZstdDiffWindowMiB > 0 && createZstdDiffWindowMiB&(createZstdDiffWindowMiB-1) != 0 {
+		return 0, fmt.Errorf("invalid --zstd-diff-window %d (must be 0 or a power of two)", createZstdDiffWindowMiB)
 	}
 
 	if createMaxZstdDiffSize < 0 {
