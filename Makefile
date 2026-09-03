@@ -1,4 +1,4 @@
-.PHONY: build clean test test-coverage test-e2e fmt lint man
+.PHONY: build build-no-ostree clean test test-coverage test-e2e fmt lint man
 
 COVERDIR ?= $(CURDIR)/.coverdata
 
@@ -6,6 +6,9 @@ VERSION := 0.99.999
 
 build:
 	go build
+
+build-no-ostree:
+	go build -tags no_ostree
 
 man:
 	go-md2man -in docs/man/oci-delta.1.md -out docs/man/oci-delta.1

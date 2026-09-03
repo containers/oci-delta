@@ -1,3 +1,5 @@
+//go:build !no_ostree
+
 package ocidelta
 
 // #cgo pkg-config: ostree-1
