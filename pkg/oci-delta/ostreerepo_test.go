@@ -1,3 +1,5 @@
+//go:build !no_ostree
+
 package ocidelta
 
 import (
