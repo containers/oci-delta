@@ -1,0 +1,25 @@
+[package]
+name = "oci-delta"
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.88"
+license = "MIT OR Apache-2.0"
+description = "Parse OCI delta artifacts and reconstruct image layers"
+repository = "https://github.com/containers/oci-delta"
+readme = "README.md"
+
+[dependencies]
+anyhow = "1.0"
+flate2 = "1.0"
+hex = "0.4"
+oci-spec = "0.10"
+openssl = { version = "0.10", default-features = false }
+zstd = "0.13"
+
+[dev-dependencies]
+tokio = { version = "1", features = ["macros", "rt"] }
+serde_json = "1"
+
+[lints.rust]
+unsafe_code = "deny"
+missing_docs = "deny"

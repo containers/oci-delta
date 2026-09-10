@@ -81,3 +81,24 @@ jobs:
         run: go mod tidy
       - name: Run tests with coverage
         run: make test-coverage
+
+  rust:
+    name: Rust tests and lint
+    permissions:
+      contents: read
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: rust/oci-delta
+    steps:
+      - uses: actions/checkout@v7
+      - name: Install native dependencies
+        run: sudo apt-get update && sudo apt-get install -y pkg-config libssl-dev
+      - name: Install Rust
+        run: rustup toolchain install stable --profile minimal --component rustfmt --component clippy
+      - name: Check Rust formatting
+        run: cargo +stable fmt --check
+      - name: Run Rust tests
+        run: cargo +stable test
+      - name: Lint Rust
+        run: cargo +stable clippy --all-targets -- -D warnings
