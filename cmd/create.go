@@ -22,6 +22,7 @@ var (
 	createZstdDiffWindowMiB int
 	createMaxZstdDiffSize   int
 	createMaxBsdiffSize     int
+	createNoSubject         bool
 )
 
 var createCmd = &cobra.Command{
@@ -53,6 +54,7 @@ func init() {
 	createCmd.Flags().IntVar(&createMaxZstdDiffSize, "max-zstd-diff-size", 128, "max file size in MiB for zstd dictionary patches (0 = no extra cap)")
 	createCmd.Flags().IntVar(&createMaxBsdiffSize, "max-bsdiff-size", 192, "max file size in MiB for bsdiff (0 = no limit)")
 	createCmd.Flags().StringArrayVar(&createSignatures, "signature", nil, "signature OCI artifact to embed (can be specified multiple times)")
+	createCmd.Flags().BoolVar(&createNoSubject, "no-subject", false, "don't add a subject reference to the target image")
 	addLogFlags(createCmd)
 }
 
@@ -157,6 +159,7 @@ func runCreate(cmd *cobra.Command, args []string) error {
 		ZstdDiffWindowMiB:  &zstdDiffWindow,
 		MaxZstdDiffSizeMiB: &maxZstdDiffSize,
 		MaxBsdiffSizeMiB:   &maxBsdiffSize,
+		NoSubject:          createNoSubject,
 	}, log)
 	if err != nil {
 		writer.Close()

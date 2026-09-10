@@ -35,6 +35,7 @@ type CreateOptions struct {
 	ZstdDiffWindowMiB  *int                     // zstd window MiB; nil/0 means auto from source size
 	MaxZstdDiffSizeMiB *int                     // zstd dict-patch size cap MiB; nil keeps tar-diff default (128); 0 = no extra cap
 	MaxBsdiffSizeMiB   *int                     // bsdiff size cap MiB; nil keeps tar-diff default (192); 0 = no limit
+	NoSubject          bool                     // Don't add a subject
 }
 
 func CreateDelta(oldReader OCIReader, newReader OCIReader, writer OCIWriter, opts CreateOptions, log *slog.Logger) (*CreateStats, error) {
@@ -223,14 +224,10 @@ func CreateDelta(oldReader OCIReader, newReader OCIReader, writer OCIWriter, opt
 		reusedDiffIDJSON, _ := json.Marshal(reusedDiffIDs)
 		deltaAnnotations[annotationDeltaReusedDiffID] = string(reusedDiffIDJSON)
 	}
+
 	deltaManifest := v1.Manifest{
 		Versioned:    specs.Versioned{SchemaVersion: 2},
 		ArtifactType: mediaTypeDelta,
-		Subject: &v1.Descriptor{
-			MediaType: v1.MediaTypeImageManifest,
-			Digest:    new.manifestDigest,
-			Size:      int64(len(imageManifestData)),
-		},
 		Config: v1.Descriptor{
 			MediaType: v1.MediaTypeEmptyJSON,
 			Digest:    deltaConfigDigest,
@@ -238,6 +235,13 @@ func CreateDelta(oldReader OCIReader, newReader OCIReader, writer OCIWriter, opt
 		},
 		Annotations: deltaAnnotations,
 		Layers:      deltaLayers,
+	}
+	if !opts.NoSubject {
+		deltaManifest.Subject = &v1.Descriptor{
+			MediaType: v1.MediaTypeImageManifest,
+			Digest:    new.manifestDigest,
+			Size:      int64(len(imageManifestData)),
+		}
 	}
 
 	deltaManifestData, err := json.Marshal(deltaManifest)
