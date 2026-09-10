@@ -8,6 +8,12 @@ a bootc host with the old image installed to the new image, without having the n
 available.  The advantage of using the delta is that it is significantly smaller, as it avoids
 shipping data that is already locally available from the installed old image.
 
+## Rust library
+
+The [Rust crate](rust/oci-delta/README.md) provides storage-independent delta
+parsing and layer reconstruction for consumers such as composefs-rs and bootc.
+It does not create deltas; use the Go CLI for that.
+
 ## Mode of operation
 
 An OCI image (and thus OCI archive) consists of some json metadata, and a list of compressed tar
