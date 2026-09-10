@@ -114,7 +114,7 @@ func CreateDelta(oldReader OCIReader, newReader OCIReader, writer OCIWriter, opt
 	// Build delta manifest layers (image manifest + config first, then layer blobs).
 	var deltaLayers []v1.Descriptor
 	deltaLayers = append(deltaLayers, v1.Descriptor{
-		MediaType: v1.MediaTypeImageManifest,
+		MediaType: mediaTypeDeltaImageManifest,
 		Digest:    new.manifestDigest,
 		Size:      int64(len(imageManifestData)),
 		Annotations: map[string]string{
@@ -122,7 +122,7 @@ func CreateDelta(oldReader OCIReader, newReader OCIReader, writer OCIWriter, opt
 		},
 	})
 	deltaLayers = append(deltaLayers, v1.Descriptor{
-		MediaType: v1.MediaTypeImageConfig,
+		MediaType: mediaTypeDeltaImageConfig,
 		Digest:    new.manifest.Config.Digest,
 		Size:      int64(len(imageConfigData)),
 		Annotations: map[string]string{
