@@ -222,7 +222,7 @@ Example delta manifest:
   },
   "layers": [
     {
-      "mediaType": "application/vnd.oci.image.manifest.v1+json",
+      "mediaType": "application/vnd.io.github.containers.oci-delta.image-manifest.v1",
       "digest": "sha256:867b4193920b8192...",
       "size": 715,
       "annotations": {
@@ -230,7 +230,7 @@ Example delta manifest:
       }
     },
     {
-      "mediaType": "application/vnd.oci.image.config.v1+json",
+      "mediaType": "application/vnd.io.github.containers.oci-delta.image-config.v1",
       "digest": "sha256:49dc3229d8ed7b49...",
       "size": 299,
       "annotations": {

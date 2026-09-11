@@ -12,6 +12,8 @@ import (
 
 const (
 	mediaTypeDelta              = "application/vnd.io.github.containers.oci-delta.v1"
+	mediaTypeDeltaImageManifest = "application/vnd.io.github.containers.oci-delta.image-manifest.v1"
+	mediaTypeDeltaImageConfig   = "application/vnd.io.github.containers.oci-delta.image-config.v1"
 	mediaTypeTarDiff            = "application/vnd.tar-diff"
 	annotationDeltaTarget       = "io.github.containers.delta.target"
 	annotationDeltaSource       = "io.github.containers.delta.source"
