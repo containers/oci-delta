@@ -7,6 +7,7 @@ downstream_package_name: oci-delta
 specfile_path: build/package/rpm/oci-delta.spec
 
 upstream_tag_template: v{version}
+upstream_tag_include: '^v[0-9]+\.[0-9]+\.[0-9]+$'
 copy_upstream_release_description: true
 
 issue_repository: https://github.com/containers/oci-delta
