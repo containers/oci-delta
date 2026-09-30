@@ -337,17 +337,16 @@ fn descriptor(media_type: &str, bytes: &[u8]) -> Value {
 }
 
 fn manifest_fixture() -> (Value, MemoryBlobs, Vec<u8>, Vec<u8>, Value) {
-    let config_raw = br#"{
-  "rootfs": {"diff_ids": [], "type": "layers"},
-  "os": "linux", "architecture": "amd64"
-}
-"#
-    .to_vec();
-    let mut config_desc = descriptor("application/vnd.oci.image.config.v1+json", &config_raw);
     let target_layer = descriptor(
         "application/vnd.oci.image.layer.v1.tar+gzip",
         b"target layer",
     );
+    let config_raw = serde_json::to_vec_pretty(&json!({
+        "rootfs": {"diff_ids": [digest(b"target layer", "sha256")], "type": "layers"},
+        "os": "linux", "architecture": "amd64"
+    }))
+    .unwrap();
+    let mut config_desc = descriptor("application/vnd.oci.image.config.v1+json", &config_raw);
     let target = json!({
         "schemaVersion": 2,
         "mediaType": "application/vnd.oci.image.manifest.v1+json",
@@ -387,6 +386,7 @@ async fn parses_embedded_manifest_preserving_bytes_and_target_layer_mapping() {
     let parsed = parse_delta_manifest(&manifest, &reader).await.unwrap();
     assert_eq!(parsed.target_manifest_raw, manifest_raw);
     assert_eq!(parsed.target_config_raw, config_raw);
+    assert_eq!(parsed.target_config.rootfs().diff_ids().len(), 1);
     assert_eq!(
         parsed.target_manifest,
         serde_json::from_value::<ImageManifest>(target.clone()).unwrap()
@@ -415,6 +415,77 @@ async fn parses_embedded_manifest_preserving_bytes_and_target_layer_mapping() {
             serde_json::from_value::<Descriptor>(delta["layers"][0].clone()).unwrap()
         )])
     );
+}
+
+#[tokio::test]
+async fn rejects_inconsistent_embedded_image() {
+    for (invalid, expected_error) in [
+        (
+            "manifest digest",
+            "Embedded target manifest does not match its digest",
+        ),
+        (
+            "config digest",
+            "Embedded target config does not match its digest",
+        ),
+        ("config reference", "references config"),
+        ("diff_id count", "0 diff_ids but 1 layers"),
+        ("patch target", "not part of the target image"),
+    ] {
+        let (mut delta, mut reader, manifest_raw, config_raw, target) = manifest_fixture();
+        match invalid {
+            "manifest digest" => {
+                let key = digest(&manifest_raw, "sha256");
+                reader.0.get_mut(&key).unwrap().push(b' ');
+            }
+            "config digest" => {
+                let key = digest(&config_raw, "sha256");
+                reader.0.get_mut(&key).unwrap().push(b' ');
+            }
+            "config reference" | "diff_id count" => {
+                let mut config: Value = serde_json::from_slice(&config_raw).unwrap();
+                if invalid == "diff_id count" {
+                    config["rootfs"]["diff_ids"] = json!([]);
+                } else {
+                    config["os"] = json!("other");
+                }
+                let new_config_raw = serde_json::to_vec(&config).unwrap();
+                let mut new_config_desc =
+                    descriptor("application/vnd.oci.image.config.v1+json", &new_config_raw);
+                new_config_desc["annotations"] = json!({ANNOTATION_DELTA_CONTENT: "image-config"});
+                reader
+                    .0
+                    .insert(digest(&new_config_raw, "sha256"), new_config_raw);
+                delta["layers"][1] = new_config_desc.clone();
+                if invalid == "diff_id count" {
+                    let mut target = target;
+                    target["config"] = new_config_desc;
+                    let new_manifest_raw = serde_json::to_vec(&target).unwrap();
+                    let mut new_manifest_desc = descriptor(
+                        "application/vnd.oci.image.manifest.v1+json",
+                        &new_manifest_raw,
+                    );
+                    new_manifest_desc["annotations"] =
+                        json!({ANNOTATION_DELTA_CONTENT: "image-manifest"});
+                    reader
+                        .0
+                        .insert(digest(&new_manifest_raw, "sha256"), new_manifest_raw);
+                    delta["layers"][2] = new_manifest_desc;
+                }
+            }
+            "patch target" => {
+                delta["layers"][0]["annotations"][ANNOTATION_DELTA_TO] =
+                    json!(digest(b"other layer", "sha256"));
+            }
+            _ => unreachable!(),
+        }
+        let manifest: ImageManifest = serde_json::from_value(delta).unwrap();
+        let error = parse_delta_manifest(&manifest, &reader).await.unwrap_err();
+        assert!(
+            format!("{error:#}").contains(expected_error),
+            "{invalid}: {error:#}"
+        );
+    }
 }
 
 #[tokio::test]
