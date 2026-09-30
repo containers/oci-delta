@@ -5,9 +5,9 @@ The Go implementation remains the delta producer.
 
 Implement `DeltaBlobReader` to read artifact blobs and `DeltaDataSource` to read
 files from the source image. `parse_delta_manifest` returns the embedded target
-metadata and changed-layer mapping; it parses metadata but does not authenticate
-it or verify its digests. Consumers must validate the raw manifest/config bytes
-and establish trust in the target digest themselves.
+metadata and changed-layer mapping. It verifies the embedded manifest and config
+against their descriptors and checks their relationship to the target layers.
+Consumers must establish trust in the delta manifest and target digest themselves.
 
 `reconstruct_layer_to` applies tar-diff v1/v2 patches or decompresses whole layers
 and verifies the resulting diff-ID. Output is streamed before verification

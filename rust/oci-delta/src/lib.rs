@@ -6,7 +6,7 @@
 //! between source and target (by diff_id) are omitted from the delta.
 //! For more information, see <https://github.com/containers/oci-delta>
 
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::future::Future;
 use std::io::{self, BufRead, BufReader, Read, Write};
 use std::pin::Pin;
@@ -347,6 +347,8 @@ fn is_tar_diff(media_type: &MediaType) -> bool {
 pub struct ParsedDelta {
     /// The target image's manifest.
     pub target_manifest: ImageManifest,
+    /// The target image's config.
+    pub target_config: ImageConfiguration,
     /// Descriptor of the target image's manifest, as carried in the delta.
     pub target_manifest_descriptor: Descriptor,
     /// Raw bytes of the target image's manifest. Preserved verbatim so that
@@ -366,90 +368,142 @@ pub struct ParsedDelta {
 
 /// Parse a delta artifact's manifest and extract the embedded target image
 /// manifest, config, and layer mapping. Blobs are fetched via `blob_reader`.
-///
-/// This parses metadata without authenticating it or verifying blob digests.
-/// Callers must validate the raw target bytes and establish trust in their digests.
+/// The embedded blobs are checked against their descriptors. Callers must
+/// establish trust in the delta manifest itself.
 pub async fn parse_delta_manifest(
     delta_manifest: &ImageManifest,
     blob_reader: &dyn DeltaBlobReader,
 ) -> Result<ParsedDelta> {
-    let annotations = delta_manifest
-        .annotations()
-        .as_ref()
-        .context("Delta manifest has no annotations")?;
+    ParsedDelta::parse(delta_manifest, blob_reader).await
+}
 
-    let source_config_digest: OciDigest = annotations
-        .get(ANNOTATION_DELTA_SOURCE_CONFIG)
-        .context("Delta missing source config digest annotation")?
-        .parse()
-        .context("Invalid source config digest")?;
-
-    let mut target_manifest_descriptor = None;
-    let mut target_config_descriptor = None;
-    let mut delta_layer_by_to = HashMap::new();
-
-    for layer in delta_manifest.layers() {
-        let layer_annotations = layer.annotations();
-        let content = layer_annotations
+impl ParsedDelta {
+    async fn parse(
+        delta_manifest: &ImageManifest,
+        blob_reader: &dyn DeltaBlobReader,
+    ) -> Result<Self> {
+        let annotations = delta_manifest
+            .annotations()
             .as_ref()
-            .and_then(|a| a.get(ANNOTATION_DELTA_CONTENT))
-            .map(|s| s.as_str())
-            .unwrap_or("");
+            .context("Delta manifest has no annotations")?;
 
-        match content {
-            "image-manifest" => {
-                target_manifest_descriptor = Some(layer.clone());
-            }
-            "image-config" => {
-                target_config_descriptor = Some(layer.clone());
-            }
-            "image-layer" => {
-                if let Some(to_str) = layer_annotations
-                    .as_ref()
-                    .and_then(|a| a.get(ANNOTATION_DELTA_TO))
-                    .filter(|s| !s.is_empty())
-                {
-                    let to_digest: OciDigest = to_str.parse().context("Invalid delta.to digest")?;
-                    delta_layer_by_to.insert(to_digest, layer.clone());
+        let source_config_digest: OciDigest = annotations
+            .get(ANNOTATION_DELTA_SOURCE_CONFIG)
+            .context("Delta missing source config digest annotation")?
+            .parse()
+            .context("Invalid source config digest")?;
+
+        let mut target_manifest_descriptor = None;
+        let mut target_config_descriptor = None;
+        let mut delta_layer_by_to = HashMap::new();
+
+        for layer in delta_manifest.layers() {
+            let layer_annotations = layer.annotations();
+            let content = layer_annotations
+                .as_ref()
+                .and_then(|a| a.get(ANNOTATION_DELTA_CONTENT))
+                .map(|s| s.as_str())
+                .unwrap_or("");
+
+            match content {
+                "image-manifest" => {
+                    target_manifest_descriptor = Some(layer.clone());
                 }
+                "image-config" => {
+                    target_config_descriptor = Some(layer.clone());
+                }
+                "image-layer" => {
+                    if let Some(to_str) = layer_annotations
+                        .as_ref()
+                        .and_then(|a| a.get(ANNOTATION_DELTA_TO))
+                        .filter(|s| !s.is_empty())
+                    {
+                        let to_digest: OciDigest =
+                            to_str.parse().context("Invalid delta.to digest")?;
+                        delta_layer_by_to.insert(to_digest, layer.clone());
+                    }
+                }
+                _ => {}
             }
-            _ => {}
         }
+
+        let target_manifest_descriptor =
+            target_manifest_descriptor.context("Delta manifest has no embedded image manifest")?;
+        let target_config_descriptor =
+            target_config_descriptor.context("Delta manifest has no embedded image config")?;
+
+        let mut target_manifest_raw = Vec::new();
+        blob_reader
+            .open_blob(&target_manifest_descriptor)
+            .await
+            .context("Fetching embedded image manifest")?
+            .read_to_end(&mut target_manifest_raw)?;
+        verify_digest(
+            "Embedded target manifest",
+            &target_manifest_raw,
+            target_manifest_descriptor.digest(),
+        )?;
+        let target_manifest = ImageManifest::from_reader(&target_manifest_raw[..])
+            .context("Parsing embedded image manifest")?;
+
+        let mut target_config_raw = Vec::new();
+        blob_reader
+            .open_blob(&target_config_descriptor)
+            .await
+            .context("Fetching embedded image config")?
+            .read_to_end(&mut target_config_raw)?;
+        verify_digest(
+            "Embedded target config",
+            &target_config_raw,
+            target_config_descriptor.digest(),
+        )?;
+        let target_config = ImageConfiguration::from_reader(&target_config_raw[..])
+            .context("Parsing embedded image config")?;
+
+        ensure!(
+            target_manifest.config().digest() == target_config_descriptor.digest(),
+            "Delta target manifest references config {}, but the embedded config is {}",
+            target_manifest.config().digest(),
+            target_config_descriptor.digest(),
+        );
+
+        let target_layers = target_manifest.layers();
+        ensure!(
+            target_config.rootfs().diff_ids().len() == target_layers.len(),
+            "Delta target image has {} diff_ids but {} layers",
+            target_config.rootfs().diff_ids().len(),
+            target_layers.len(),
+        );
+        let target_digests: HashSet<_> = target_layers.iter().map(|layer| layer.digest()).collect();
+        for to in delta_layer_by_to.keys() {
+            ensure!(
+                target_digests.contains(to),
+                "Delta contains a patch for layer {to}, which is not part of the target image",
+            );
+        }
+
+        Ok(Self {
+            target_manifest,
+            target_config,
+            target_manifest_descriptor,
+            target_manifest_raw,
+            target_config_descriptor,
+            target_config_raw,
+            source_config_digest,
+            delta_layer_by_to,
+        })
     }
+}
 
-    let target_manifest_descriptor =
-        target_manifest_descriptor.context("Delta manifest has no embedded image manifest")?;
-    let target_config_descriptor =
-        target_config_descriptor.context("Delta manifest has no embedded image config")?;
-
-    let mut target_manifest_raw = Vec::new();
-    blob_reader
-        .open_blob(&target_manifest_descriptor)
-        .await
-        .context("Fetching embedded image manifest")?
-        .read_to_end(&mut target_manifest_raw)?;
-    let target_manifest = ImageManifest::from_reader(&target_manifest_raw[..])
-        .context("Parsing embedded image manifest")?;
-
-    let mut target_config_raw = Vec::new();
-    blob_reader
-        .open_blob(&target_config_descriptor)
-        .await
-        .context("Fetching embedded image config")?
-        .read_to_end(&mut target_config_raw)?;
-    // Validate it parses
-    ImageConfiguration::from_reader(&target_config_raw[..])
-        .context("Parsing embedded image config")?;
-
-    Ok(ParsedDelta {
-        target_manifest,
-        target_manifest_descriptor,
-        target_manifest_raw,
-        target_config_descriptor,
-        target_config_raw,
-        source_config_digest,
-        delta_layer_by_to,
-    })
+fn verify_digest(what: &str, data: &[u8], expected: &OciDigest) -> Result<()> {
+    let mut hasher = OciHasher::new(expected.algorithm())?;
+    hasher.update(data)?;
+    let found = hasher.finalize()?;
+    ensure!(
+        &found == expected,
+        "{what} does not match its digest: expected {expected}, got {found}",
+    );
+    Ok(())
 }
 
 #[cfg(test)]
