@@ -74,6 +74,7 @@ MEDIA_IMAGE_MANIFEST = "application/vnd.oci.image.manifest.v1+json"
 MEDIA_IMAGE_CONFIG   = "application/vnd.oci.image.config.v1+json"
 MEDIA_LAYER_GZIP     = "application/vnd.oci.image.layer.v1.tar+gzip"
 
+ANNOTATION_DELTA_CONTENT      = "io.github.containers.delta.content"
 ANNOTATION_DELTA_TO           = "io.github.containers.delta.to"
 ANNOTATION_DELTA_FROM         = "io.github.containers.delta.from"
 ANNOTATION_DELTA_FROM_DIFF_ID = "io.github.containers.delta.from-diff-id"
@@ -99,10 +100,11 @@ def open_delta(path):
     delta_layer_by_to = {}  # digest string -> layer descriptor dict
 
     for layer in delta_manifest.get('layers', []):
+        content = (layer.get('annotations') or {}).get(ANNOTATION_DELTA_CONTENT)
         mt = layer.get('mediaType', '')
-        if mt == MEDIA_IMAGE_MANIFEST:
+        if content == "image-manifest":
             image_manifest_desc = layer
-        elif mt == MEDIA_IMAGE_CONFIG:
+        elif content == "image-config":
             image_config_desc = layer
         elif mt in (MEDIA_TAR_DIFF, MEDIA_LAYER_GZIP):
             to_digest = (layer.get('annotations') or {}).get(ANNOTATION_DELTA_TO)
