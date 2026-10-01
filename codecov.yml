@@ -1,0 +1,20 @@
+# Codecov configuration for oci-delta
+# See: https://docs.codecov.com/docs/codecov-yaml
+
+coverage:
+  status:
+    project:
+      default:
+        target: 75%
+        threshold: 1%
+        informational: false
+    patch:
+      default:
+        target: 75%
+        threshold: 1%
+        informational: false
+
+comment:
+  layout: "reach,diff,flags,tree"
+  behavior: default
+  require_changes: false

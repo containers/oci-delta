@@ -140,6 +140,30 @@ make test-coverage
 
 It would be good to run this before and after making your changes to catch any regressions. The coverage report is printed to stdout.
 
+#### Test Coverage Requirements
+
+This project enforces test coverage thresholds to maintain code quality:
+
+- **Project coverage:** 75% minimum (entire codebase)
+- **Patch coverage:** 75% minimum (new/changed code in PRs)
+- **Package coverage:** 75% minimum per package
+
+Coverage is enforced through:
+1. **Codecov** - Provides visibility and reporting on coverage trends
+2. **go-test-coverage** - Hard CI failure if coverage drops below thresholds
+
+**Before submitting a PR:**
+
+```bash
+# Run tests with coverage
+make test-coverage
+
+# Check coverage against thresholds (requires go-test-coverage tool)
+# This is the same check that runs in CI
+```
+
+PRs that drop coverage below these thresholds will fail CI and cannot be merged. Add tests to ensure your changes meet the coverage requirements.
+
 ### Documentation
 
 If you change any CLI flags, commands, or their behavior, update [README.md](README.md) and regenerate the man page:
