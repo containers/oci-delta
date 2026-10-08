@@ -37,6 +37,13 @@ test-coverage:
 	go tool covdata textfmt -i=$(COVERDIR)/unit -o=$(COVERDIR)/unit.out
 	go tool covdata textfmt -i=$(COVERDIR)/integration -o=$(COVERDIR)/integration.out
 
+test-coverage-check: test-coverage
+	@echo "Merging coverage profiles..."
+	@echo "mode: set" > $(COVERDIR)/coverage.out
+	@tail -q -n +2 $(COVERDIR)/unit.out $(COVERDIR)/integration.out >> $(COVERDIR)/coverage.out
+	@echo "Checking coverage thresholds..."
+	@go-test-coverage --config=.testcoverage.yml
+
 test-e2e: build
 	@echo "Running E2E tests (requires KVM for full coverage, falls back to container mode)"
 	tests/e2e-bootc-test.sh

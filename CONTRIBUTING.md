@@ -159,7 +159,8 @@ Coverage is enforced through:
 make test-coverage
 
 # Check coverage against thresholds (requires go-test-coverage tool)
-# This is the same check that runs in CI
+# This runs the same check that executes in CI
+make test-coverage-check
 ```
 
 PRs that drop coverage below these thresholds will fail CI and cannot be merged. Add tests to ensure your changes meet the coverage requirements.
