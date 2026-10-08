@@ -155,15 +155,14 @@ Coverage is enforced through:
 **Before submitting a PR:**
 
 ```bash
-# Run tests with coverage
-make test-coverage
-
-# Check coverage against thresholds (requires go-test-coverage tool)
+# Run tests with coverage and validate against thresholds
 # This runs the same check that executes in CI
 make test-coverage-check
 ```
 
-PRs that drop coverage below these thresholds will fail CI and cannot be merged. Add tests to ensure your changes meet the coverage requirements.
+This will run all tests, generate coverage reports, and validate that coverage meets the 75% threshold. PRs that drop coverage below these thresholds will fail CI and cannot be merged. Add tests to ensure your changes meet the coverage requirements.
+
+**Note:** If you don't have `go-test-coverage` installed, you can run just `make test-coverage` to see coverage percentages without threshold validation.
 
 ### Documentation
 
