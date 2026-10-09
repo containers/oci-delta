@@ -63,11 +63,19 @@ jobs:
         run: sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
       - name: Run tests with coverage
         run: make test-coverage
+      - name: Merge coverage profiles
+        run: |
+          echo "mode: set" > .coverdata/coverage.out
+          tail -q -n +2 .coverdata/unit.out .coverdata/integration.out >> .coverdata/coverage.out
       - name: Upload results to Codecov
         uses: codecov/codecov-action@v7
         with:
           use_oidc: true
           files: .coverdata/unit.out,.coverdata/integration.out
+      - name: Check coverage thresholds
+        uses: vladopajic/go-test-coverage@v2
+        with:
+          config: ./.testcoverage.yml
   test-fedora:
     runs-on: ubuntu-latest
     container:

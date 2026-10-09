@@ -12,3 +12,6 @@ docs/man/oci-delta.1
 
 *.bz2
 *.gz
+
+# Coverage data
+.coverdata/

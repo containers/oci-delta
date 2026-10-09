@@ -1,0 +1,10 @@
+# Configuration for go-test-coverage GitHub Action
+# See: https://github.com/vladopajic/go-test-coverage
+
+profile: .coverdata/coverage.out
+threshold:
+  package: 75
+  total: 75
+exclude:
+  paths:
+    - ^cmd/
