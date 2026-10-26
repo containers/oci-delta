@@ -64,7 +64,7 @@ func runApply(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("--ostree-repo, --directory, and --container-storage are mutually exclusive")
 	}
 
-	tmpDir, err := os.MkdirTemp("/var/tmp", "oci-delta-*")
+	tmpDir, err := os.MkdirTemp("", "oci-delta-*")
 	if err != nil {
 		return fmt.Errorf("failed to create temp directory: %w", err)
 	}

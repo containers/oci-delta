@@ -57,7 +57,7 @@ func runImport(cmd *cobra.Command, args []string) error {
 	}
 	defer func() { store.Shutdown(false) }()
 
-	tmpDir, err := os.MkdirTemp("/var/tmp", "oci-delta-*")
+	tmpDir, err := os.MkdirTemp("", "oci-delta-*")
 	if err != nil {
 		return fmt.Errorf("failed to create temp directory: %w", err)
 	}
