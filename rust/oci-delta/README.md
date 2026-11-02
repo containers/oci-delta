@@ -16,6 +16,8 @@ crate does not fetch images.
 
 Building requires Rust 1.88 or newer, a C compiler, pkg-config, and the system
 OpenSSL development files. Hashing uses system OpenSSL, as in composefs-rs.
+The streaming decoder depends on zstd 0.14.3 or newer so it uses the patched
+zstd-safe 8.2 API rather than the vulnerable zstd 0.13 dependency line.
 
 Run `cargo test --manifest-path rust/oci-delta/Cargo.toml` from the repository root.
 The source was moved from composefs-rs under its MIT OR Apache-2.0 license.
