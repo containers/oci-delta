@@ -14,7 +14,7 @@ flate2 = "1.0"
 hex = "0.4"
 oci-spec = "0.10"
 openssl = { version = "0.10", default-features = false }
-zstd = "0.13"
+zstd = "0.14.3"
 
 [dev-dependencies]
 tokio = { version = "1", features = ["macros", "rt"] }
