@@ -6,9 +6,24 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 PROJECT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
-OCI_DELTA="$PROJECT_DIR/oci-delta"
 
 # Configuration (override with env vars)
+# OCI_DELTA_SOURCE: where the oci-delta binary under test comes from.
+#   source (default): the from-source build in the project root
+#                     (requires 'make build' first)
+#   rpm:              the installed RPM binary resolved from PATH;
+#                     asserts the installed NVR so the tested build is
+#                     unambiguous
+# OCI_DELTA: explicit binary path, overriding the source-mode default
+OCI_DELTA_SOURCE="${OCI_DELTA_SOURCE:-source}"
+case "$OCI_DELTA_SOURCE" in
+    source)
+        OCI_DELTA="${OCI_DELTA:-$PROJECT_DIR/oci-delta}"
+        ;;
+    rpm)
+        OCI_DELTA="${OCI_DELTA:-$(command -v oci-delta || true)}"
+        ;;
+esac
 BASE_IMAGE="${BASE_IMAGE:-quay.io/fedora/fedora-bootc:43}"
 TARGET_IMAGE="${TARGET_IMAGE:-quay.io/fedora/fedora-bootc:44}"
 TEST_MODE="${TEST_MODE:-auto}"  # auto, vm, container
@@ -46,8 +61,18 @@ die() { error "$*"; exit 1; }
 
 # Check prerequisites
 check_prereqs() {
+    if [ "$OCI_DELTA_SOURCE" != "source" ] && [ "$OCI_DELTA_SOURCE" != "rpm" ]; then
+        die "Invalid OCI_DELTA_SOURCE: $OCI_DELTA_SOURCE (use 'rpm' or 'source')"
+    fi
+
     if [ ! -x "$OCI_DELTA" ]; then
-        die "oci-delta binary not found at $OCI_DELTA (run 'make build' first)"
+        die "oci-delta binary not found at $OCI_DELTA (run 'make build' first, set OCI_DELTA, or install the RPM and set OCI_DELTA_SOURCE=rpm)"
+    fi
+
+    if [ "$OCI_DELTA_SOURCE" = "rpm" ]; then
+        local nvr
+        nvr=$(rpm -q oci-delta) || die "OCI_DELTA_SOURCE=rpm requires the oci-delta RPM to be installed (rpm -q oci-delta failed)"
+        log "Testing oci-delta RPM: $nvr (binary: $OCI_DELTA)"
     fi
 
     for cmd in podman jq skopeo; do

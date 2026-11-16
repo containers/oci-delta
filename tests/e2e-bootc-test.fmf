@@ -1,0 +1,13 @@
+summary: E2E test for oci-delta with bootc images
+description: |
+    End-to-end testing of the oci-delta workflow on real bootc images:
+    pull base and target images, create a delta, apply it to reconstruct
+    the target image, and (in VM mode) switch the bootc deployment,
+    reboot, and verify the new deployment.
+
+    The binary under test defaults to the from-source build in the
+    project root. Set OCI_DELTA_SOURCE=rpm to test the installed RPM
+    binary instead (resolved from PATH, with the installed NVR
+    asserted), or point OCI_DELTA at an explicit binary path.
+test: ./e2e-bootc-test.sh
+duration: 2h
