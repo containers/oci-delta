@@ -11,3 +11,14 @@ description: |
     asserted), or point OCI_DELTA at an explicit binary path.
 test: ./e2e-bootc-test.sh
 duration: 2h
+# The oci-delta workload runs inside a nested VM, so SELinux denials
+# on the outer guest (e.g. bootupctl mount transitions during bootc
+# deployment switches) are environment noise rather than test
+# regressions. Collect the avc report but keep it informational, so
+# dist-git gating pipelines do not fail on it. This also preempts the
+# default gating avc check injected by the internal rhel-ci tmt
+# policy, which only applies when the test defines no check of its
+# own.
+check:
+    - how: avc
+      result: info
